@@ -10,14 +10,14 @@ See: .paul/PROJECT.md (updated 2026-04-02)
 ## Current Position
 
 Milestone: v1.0 MVP (v1.0.0)
-Phase: 2 of 4 (Construct Core) — Ready to plan
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-04-02 — Phase 1 complete, transitioned to Phase 2
+Phase: 2 of 4 (Construct Core) — In Progress
+Plan: 02-01 complete (1/5 plans done)
+Status: Ready for next PLAN (02-02)
+Last activity: 2026-04-02 — 02-01 M0 Environment Setup unified
 
 Progress:
-- Milestone: [██░░░░░░░░] 25%
-- Phase 2: [░░░░░░░░░░] 0%
+- Milestone: [███░░░░░░░] 30%
+- Phase 2: [██░░░░░░░░] 20%
 
 ## Loop Position
 
@@ -44,7 +44,8 @@ PLAN ──▶ APPLY ──▶ UNIFY
 
 | Issue | Origin | Effort | Revisit |
 |-------|--------|--------|---------|
-| ydotool socket path config | PLAN.md risk register | S | M2 implementation |
+| YDOTOOL_SOCKET=/run/user/1000/.ydotool_socket must be set in all ydotool subprocess calls | M0 verified | S | M2 — tools/mouse.py + tools/keyboard.py |
+| ydotool.service shows start-limit-hit (cosmetic, daemon runs fine); fix unit type | M0 verified | S | Pre-release (M13) |
 | grim portal permission setup | PLAN.md risk register | S | M0 setup |
 | Playwright Wayland rendering | PLAN.md risk register | M | M7 implementation |
 
@@ -55,8 +56,8 @@ None yet.
 
 Last session: 2026-04-02
 Stopped at: Plan 01-01 created
-Next action: Run /paul:plan for Phase 2 (Construct Core — M0 environment setup first)
-Resume file: .paul/ROADMAP.md
+Next action: /paul:plan for Phase 2 Plan 02 — M1 Screenshot capture (tools/screenshot.py)
+Resume file: .paul/phases/02-construct-core/02-01-SUMMARY.md
 
 ---
 *STATE.md — Updated after every significant action*
