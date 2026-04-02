@@ -11,15 +11,15 @@ See: .paul/PROJECT.md (updated 2026-04-02)
 
 Milestone: v1.0 MVP (v1.0.0)
 Phase: 2 of 4 (Construct Core) — In Progress
-Plan: 03-02 created, awaiting approval
+Plan: 03-03 created, awaiting approval
 Status: PLAN created, ready for APPLY
-Last activity: 2026-04-02 — Created 03-02 M7 Browser plan
+Last activity: 2026-04-02 — Created 03-03 M6 Agent Loop plan
 
 Progress:
-- Milestone: [█████████░] 85%
-- Phase 3: [██░░░░░░░░] 25%
+- Milestone: [█████████░] 90%
+- Phase 3: [█████░░░░░] 50%
 
-MCP handlers: 14/20 wired (browser×6 remain)
+MCP handlers: 20/20 wired ✓
 
 ## Loop Position
 

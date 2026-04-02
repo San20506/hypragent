@@ -1,6 +1,137 @@
-"""Agent loop — perceive → reason → act cycle. Implemented in Milestone M6."""
+"""Agent loop — perceive → reason → act cycle. Milestone M6."""
 
+from tools.screenshot import capture_fullscreen
+from tools.ocr import extract_text_fullscreen, extract_text_from_region
+from tools.mouse import move_mouse, click, drag, scroll
+from tools.keyboard import type_text, press_key
+from tools.files import file_read, file_write
+from tools.terminal import terminal_run as _run_terminal
+from tools.browser import (
+    browser_open, browser_navigate, browser_click,
+    browser_type, browser_scroll, browser_get_text,
+)
 from agent.backends.base import AgentResponse, BackendAdapter
+
+
+_SYSTEM_PROMPT = (
+    "You are a desktop automation agent running on Hyprland/Wayland. "
+    "You control the desktop by calling tools. You receive screenshots and OCR text "
+    "to perceive the current screen state. "
+    "Complete the given task by using tools, then respond with 'TASK COMPLETE' "
+    "when finished and make no more tool calls."
+)
+
+AGENT_TOOLS = [
+    {"name": "take_screenshot", "description": "Capture the current screen",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "mouse_move", "description": "Move mouse cursor to absolute screen coordinates",
+     "inputSchema": {"type": "object", "properties": {
+         "x": {"type": "integer"}, "y": {"type": "integer"}},
+         "required": ["x", "y"]}},
+    {"name": "mouse_click", "description": "Move to coordinates and click",
+     "inputSchema": {"type": "object", "properties": {
+         "x": {"type": "integer"}, "y": {"type": "integer"},
+         "button": {"type": "string", "enum": ["left", "right", "middle"]}},
+         "required": ["x", "y"]}},
+    {"name": "mouse_drag", "description": "Click and drag from one position to another",
+     "inputSchema": {"type": "object", "properties": {
+         "from_x": {"type": "integer"}, "from_y": {"type": "integer"},
+         "to_x": {"type": "integer"}, "to_y": {"type": "integer"}},
+         "required": ["from_x", "from_y", "to_x", "to_y"]}},
+    {"name": "mouse_scroll", "description": "Scroll at screen coordinates",
+     "inputSchema": {"type": "object", "properties": {
+         "x": {"type": "integer"}, "y": {"type": "integer"},
+         "direction": {"type": "string", "enum": ["up", "down"]},
+         "amount": {"type": "integer"}},
+         "required": ["x", "y", "direction"]}},
+    {"name": "keyboard_type", "description": "Type a string of text",
+     "inputSchema": {"type": "object", "properties": {
+         "text": {"type": "string"}}, "required": ["text"]}},
+    {"name": "keyboard_press", "description": "Press a key or key combination (e.g. Return, ctrl+c)",
+     "inputSchema": {"type": "object", "properties": {
+         "key": {"type": "string"}}, "required": ["key"]}},
+    {"name": "read_screen_text", "description": "Extract all visible text from screen via OCR",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "terminal_run", "description": "Run a shell command and return output",
+     "inputSchema": {"type": "object", "properties": {
+         "command": {"type": "string"},
+         "cwd": {"type": "string"},
+         "timeout": {"type": "integer"}},
+         "required": ["command"]}},
+    {"name": "file_read", "description": "Read a text file",
+     "inputSchema": {"type": "object", "properties": {
+         "path": {"type": "string"}}, "required": ["path"]}},
+    {"name": "file_write", "description": "Write content to a file",
+     "inputSchema": {"type": "object", "properties": {
+         "path": {"type": "string"}, "content": {"type": "string"}},
+         "required": ["path", "content"]}},
+    {"name": "browser_open", "description": "Open a URL in the browser",
+     "inputSchema": {"type": "object", "properties": {
+         "url": {"type": "string"}}, "required": ["url"]}},
+    {"name": "browser_get_text", "description": "Get visible text from a browser element",
+     "inputSchema": {"type": "object", "properties": {
+         "selector": {"type": "string"}}, "required": ["selector"]}},
+]
+
+
+def _dispatch_tool(name: str, arguments: dict) -> str:
+    """Dispatch a tool call by name and return the result as a string."""
+    try:
+        match name:
+            case "take_screenshot":
+                return capture_fullscreen()
+            case "mouse_move":
+                move_mouse(arguments["x"], arguments["y"])
+                return "OK"
+            case "mouse_click":
+                click(arguments["x"], arguments["y"], arguments.get("button", "left"))
+                return "OK"
+            case "mouse_drag":
+                drag(arguments["from_x"], arguments["from_y"],
+                     arguments["to_x"], arguments["to_y"])
+                return "OK"
+            case "mouse_scroll":
+                scroll(arguments["x"], arguments["y"],
+                       arguments["direction"], arguments.get("amount", 3))
+                return "OK"
+            case "keyboard_type":
+                type_text(arguments["text"])
+                return "OK"
+            case "keyboard_press":
+                press_key(arguments["key"])
+                return "OK"
+            case "read_screen_text":
+                return extract_text_fullscreen()
+            case "terminal_run":
+                result = _run_terminal(
+                    arguments["command"],
+                    cwd=arguments.get("cwd"),
+                    timeout=arguments.get("timeout", 30),
+                )
+                out = result.stdout
+                if result.stderr:
+                    out += f"\n[stderr]\n{result.stderr}"
+                if result.timed_out:
+                    out = "[timed out]"
+                elif result.returncode != 0:
+                    out += f"\n[exit {result.returncode}]"
+                return out
+            case "file_read":
+                return file_read(arguments["path"])
+            case "file_write":
+                file_write(arguments["path"], arguments["content"], confirm=False)
+                return "OK"
+            case "browser_open":
+                browser_open(arguments["url"])
+                return "OK"
+            case "browser_get_text":
+                return browser_get_text(arguments["selector"])
+            case _:
+                return f"Unknown tool: {name}"
+    except ValueError as e:
+        return f"Blocked: {e}"
+    except Exception as e:
+        return f"Error: {e}"
 
 
 class AgentLoop:
@@ -12,7 +143,7 @@ class AgentLoop:
     Termination conditions:
         - task_complete: backend signals stop_reason == "end_turn" with no tool calls
         - max_steps_reached: step count >= config loop.max_steps
-        - kill_switch_triggered: user presses kill_switch_key combination
+        - kill_switch_triggered: user presses kill_switch_key combination (M10)
     """
 
     def __init__(self, config: dict, backend: BackendAdapter) -> None:
@@ -28,8 +159,39 @@ class AgentLoop:
         Args:
             task: Natural language description of the task to complete.
         """
-        # TODO M6: Implement main loop
-        raise NotImplementedError("M6: AgentLoop.run not yet implemented")
+        self._step = 0
+        self._history = []
+
+        while True:
+            perception = self._perceive()
+            response = self._reason(perception, task)
+
+            if self._check_termination(response):
+                break
+
+            tool_results = self._act(response)
+
+            # Append assistant turn with tool_use blocks if any
+            if response.tool_calls:
+                assistant_content: list[dict] | str = []
+                if response.content:
+                    assistant_content.append({"type": "text", "text": response.content})
+                for tc in response.tool_calls:
+                    assistant_content.append({
+                        "type": "tool_use",
+                        "id": tc["id"],
+                        "name": tc["name"],
+                        "input": tc["input"],
+                    })
+            else:
+                assistant_content = response.content
+
+            self._history.append({"role": "assistant", "content": assistant_content})
+
+            if tool_results:
+                self._history.append({"role": "user", "content": tool_results})
+
+            self._step += 1
 
     def _perceive(self) -> dict:
         """Capture screenshot and OCR text from current screen state.
@@ -37,8 +199,10 @@ class AgentLoop:
         Returns:
             Perception dict with keys: screenshot_b64, ocr_text.
         """
-        # TODO M6: Call tools.screenshot + tools.ocr
-        raise NotImplementedError("M6: AgentLoop._perceive not yet implemented")
+        return {
+            "screenshot_b64": capture_fullscreen(),
+            "ocr_text": extract_text_fullscreen(),
+        }
 
     def _reason(self, perception: dict, task: str) -> AgentResponse:
         """Send perception + history to backend for reasoning.
@@ -46,22 +210,41 @@ class AgentLoop:
         Returns:
             AgentResponse with content and any tool_calls.
         """
-        # TODO M6: Build message list and call backend.send_message
-        raise NotImplementedError("M6: AgentLoop._reason not yet implemented")
+        ocr_text = perception["ocr_text"].strip()
+        if not self._history:
+            content = f"{_SYSTEM_PROMPT}\n\nTask: {task}\n\nScreen OCR:\n{ocr_text}"
+        else:
+            content = f"Screen OCR:\n{ocr_text}"
+
+        messages = [*self._history, {"role": "user", "content": content}]
+
+        return self.backend.send_message(
+            messages=messages,
+            tools=AGENT_TOOLS,
+            images=[perception["screenshot_b64"]],
+        )
 
     def _act(self, response: AgentResponse) -> list[dict]:
         """Execute tool calls from backend response.
 
         Returns:
-            List of tool result dicts to append to history.
+            List of tool result dicts in Claude tool_result format.
         """
-        # TODO M6: Dispatch to tool registry, handle confirm_destructive_actions
-        raise NotImplementedError("M6: AgentLoop._act not yet implemented")
+        results = []
+        for tc in response.tool_calls:
+            result_str = _dispatch_tool(tc["name"], tc["input"])
+            results.append({
+                "type": "tool_result",
+                "tool_use_id": tc["id"],
+                "content": result_str,
+            })
+        return results
 
     def _check_termination(self, response: AgentResponse) -> bool:
-        """Return True if loop should stop.
-
-        Checks: stop_reason, max_steps, kill_switch state.
-        """
-        # TODO M6: Implement termination logic
-        raise NotImplementedError("M6: AgentLoop._check_termination not yet implemented")
+        """Return True if loop should stop."""
+        max_steps = self.config.get("loop", {}).get("max_steps", 20)
+        if self._step >= max_steps:
+            return True
+        if response.stop_reason == "end_turn" and not response.tool_calls:
+            return True
+        return False
