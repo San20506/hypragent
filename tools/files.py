@@ -1,7 +1,12 @@
-"""File management tool. Implemented in Milestone M8.
+"""File management tool — Milestone M8.
 
-Destructive operations (write, move, delete) respect config.loop.confirm_destructive_actions.
+Destructive operations (write, move, delete) accept a confirm parameter
+reserved for M10 safety controls. Not enforced in MVP.
 """
+
+import os
+import shutil
+import subprocess
 
 
 def file_list(path: str) -> list[dict]:
@@ -13,8 +18,18 @@ def file_list(path: str) -> list[dict]:
     Returns:
         List of dicts with keys: name, path, is_dir, size, modified.
     """
-    # TODO M8: Implement using os.scandir
-    raise NotImplementedError("M8: file_list not yet implemented")
+    entries = []
+    with os.scandir(path) as it:
+        for entry in it:
+            stat = entry.stat()
+            entries.append({
+                "name": entry.name,
+                "path": entry.path,
+                "is_dir": entry.is_dir(),
+                "size": stat.st_size,
+                "modified": stat.st_mtime,
+            })
+    return entries
 
 
 def file_read(path: str) -> str:
@@ -26,8 +41,8 @@ def file_read(path: str) -> str:
     Returns:
         File contents as string (UTF-8 decoded).
     """
-    # TODO M8: Implement with explicit UTF-8 encoding
-    raise NotImplementedError("M8: file_read not yet implemented")
+    with open(path, encoding="utf-8") as f:
+        return f.read()
 
 
 def file_write(path: str, content: str, confirm: bool = True) -> None:
@@ -36,10 +51,10 @@ def file_write(path: str, content: str, confirm: bool = True) -> None:
     Args:
         path: Absolute file path to write.
         content: String content to write.
-        confirm: If True and config.confirm_destructive_actions is set, prompt user.
+        confirm: Reserved for M10 destructive action confirmation.
     """
-    # TODO M8: Implement with confirmation check
-    raise NotImplementedError("M8: file_write not yet implemented")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 
 def file_move(src: str, dst: str, confirm: bool = True) -> None:
@@ -48,10 +63,9 @@ def file_move(src: str, dst: str, confirm: bool = True) -> None:
     Args:
         src: Source path.
         dst: Destination path.
-        confirm: If True and config.confirm_destructive_actions is set, prompt user.
+        confirm: Reserved for M10 destructive action confirmation.
     """
-    # TODO M8: Implement using shutil.move with confirmation check
-    raise NotImplementedError("M8: file_move not yet implemented")
+    shutil.move(src, dst)
 
 
 def file_delete(path: str, confirm: bool = True) -> None:
@@ -59,10 +73,9 @@ def file_delete(path: str, confirm: bool = True) -> None:
 
     Args:
         path: Absolute file path to delete.
-        confirm: If True and config.confirm_destructive_actions is set, prompt user.
+        confirm: Reserved for M10 destructive action confirmation.
     """
-    # TODO M8: Implement with confirmation check — no recursive delete
-    raise NotImplementedError("M8: file_delete not yet implemented")
+    os.remove(path)
 
 
 def file_open(path: str) -> None:
@@ -71,5 +84,4 @@ def file_open(path: str) -> None:
     Args:
         path: Absolute file path.
     """
-    # TODO M8: Implement using subprocess xdg-open
-    raise NotImplementedError("M8: file_open not yet implemented")
+    subprocess.run(["xdg-open", path])

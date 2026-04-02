@@ -11,13 +11,13 @@ See: .paul/PROJECT.md (updated 2026-04-02)
 
 Milestone: v1.0 MVP (v1.0.0)
 Phase: 2 of 4 (Construct Core) — In Progress
-Plan: 02-05 created, awaiting approval
-Status: PLAN created, ready for APPLY
-Last activity: 2026-04-02 — Created 02-05 M4 Claude Backend plan
+Plan: 03-01 created, awaiting approval
+Status: Phase 3 started — PLAN created, ready for APPLY
+Last activity: 2026-04-02 — Created 03-01 M8+M9 File+Terminal plan
 
 Progress:
-- Milestone: [███████░░░] 65%
-- Phase 2: [████████░░] 80%
+- Milestone: [█████████░] 80%
+- Phase 3: [░░░░░░░░░░] 0%
 
 ## Loop Position
 
@@ -55,9 +55,9 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-02
-Stopped at: Plan 02-04 unified
-Next action: /paul:plan for Phase 2 Plan 05 — M4 Backend Adapter (agent/backends/claude.py)
-Resume file: .paul/phases/02-construct-core/02-04-SUMMARY.md
+Stopped at: Phase 2 complete (all 5 plans unified)
+Next action: /paul:plan to begin Phase 3 — Construct Extended (M5 MCP server polish, M6 Agent Loop)
+Resume file: .paul/phases/02-construct-core/02-05-SUMMARY.md
 
 ---
 *STATE.md — Updated after every significant action*

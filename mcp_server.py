@@ -8,6 +8,7 @@ Stubs return an informative message rather than raising, so the server stays ali
 """
 
 import asyncio
+import json
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -17,6 +18,8 @@ from tools.screenshot import capture_fullscreen, capture_region
 from tools.mouse import move_mouse, click, drag, scroll
 from tools.keyboard import type_text, press_key
 from tools.ocr import extract_text_fullscreen, extract_text_from_region
+from tools.files import file_list, file_read, file_write, file_move, file_delete
+from tools.terminal import terminal_run as _terminal_run
 
 
 server = Server("hypr-agent")
@@ -211,17 +214,55 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         case "browser_get_text":
             return _stub("M7", name)
         case "file_list":
-            return _stub("M8", name)
+            try:
+                entries = file_list(arguments["path"])
+                return [TextContent(type="text", text=json.dumps(entries))]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "file_read":
-            return _stub("M8", name)
+            try:
+                return [TextContent(type="text", text=file_read(arguments["path"]))]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "file_write":
-            return _stub("M8", name)
+            try:
+                file_write(arguments["path"], arguments["content"],
+                           arguments.get("confirm", True))
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "file_move":
-            return _stub("M8", name)
+            try:
+                file_move(arguments["src"], arguments["dst"],
+                          arguments.get("confirm", True))
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "file_delete":
-            return _stub("M8", name)
+            try:
+                file_delete(arguments["path"], arguments.get("confirm", True))
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "terminal_run":
-            return _stub("M9", name)
+            try:
+                result = _terminal_run(
+                    arguments["command"],
+                    cwd=arguments.get("cwd"),
+                    timeout=arguments.get("timeout", 30),
+                )
+                output = result.stdout
+                if result.stderr:
+                    output += f"\n[stderr]\n{result.stderr}"
+                if result.timed_out:
+                    output = "[timed out]"
+                elif result.returncode != 0:
+                    output += f"\n[exit {result.returncode}]"
+                return [TextContent(type="text", text=output)]
+            except ValueError as e:
+                return [TextContent(type="text", text=f"Blocked: {e}")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case _:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 

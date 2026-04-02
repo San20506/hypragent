@@ -1,9 +1,11 @@
-"""Terminal command execution tool. Implemented in Milestone M9.
+"""Terminal command execution tool — Milestone M9.
 
 Safety: Commands are run via subprocess list args (no shell=True).
 Blocklist and timeout enforced per config.
 """
 
+import shlex
+import subprocess
 from dataclasses import dataclass
 
 
@@ -14,6 +16,15 @@ class TerminalResult:
     stderr: str
     returncode: int
     timed_out: bool
+
+
+# Matches config.yaml.example safety.command_blocklist — config-driven binding in M13
+BLOCKLIST = [
+    "rm -rf /",
+    "dd if=",
+    "mkfs",
+    ":(){:|:&};:",
+]
 
 
 def terminal_run(
@@ -34,9 +45,27 @@ def terminal_run(
     Raises:
         ValueError: If command matches a blocklist entry.
     """
-    # TODO M9: Split command into list args, check blocklist, run with subprocess,
-    #          enforce timeout via subprocess.run(timeout=timeout)
-    raise NotImplementedError("M9: terminal_run not yet implemented")
+    for blocked in BLOCKLIST:
+        if blocked in command:
+            raise ValueError(f"Command blocked by safety policy: {blocked!r}")
+
+    args = shlex.split(command)
+    try:
+        result = subprocess.run(
+            args,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        return TerminalResult(
+            stdout=result.stdout,
+            stderr=result.stderr,
+            returncode=result.returncode,
+            timed_out=False,
+        )
+    except subprocess.TimeoutExpired:
+        return TerminalResult(stdout="", stderr="", returncode=-1, timed_out=True)
 
 
 def terminal_run_interactive(command: str) -> None:
