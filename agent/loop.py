@@ -1,4 +1,9 @@
-"""Agent loop — perceive → reason → act cycle. Milestone M6."""
+"""Agent loop — perceive → reason → act cycle. Milestones M6 + M10."""
+
+import json
+import os
+import signal
+from datetime import datetime, timezone
 
 from tools.screenshot import capture_fullscreen
 from tools.ocr import extract_text_fullscreen, extract_text_from_region
@@ -20,6 +25,10 @@ _SYSTEM_PROMPT = (
     "Complete the given task by using tools, then respond with 'TASK COMPLETE' "
     "when finished and make no more tool calls."
 )
+
+_AUDIT_LOG = os.path.expanduser("~/.config/hypr-agent/audit.log")
+
+_DESTRUCTIVE_TOOLS = {"file_write", "file_move", "file_delete", "terminal_run"}
 
 AGENT_TOOLS = [
     {"name": "take_screenshot", "description": "Capture the current screen",
@@ -74,8 +83,36 @@ AGENT_TOOLS = [
 ]
 
 
-def _dispatch_tool(name: str, arguments: dict) -> str:
+def _audit(tool_name: str, arguments: dict, result: str) -> None:
+    """Append a JSON line to the audit log."""
+    os.makedirs(os.path.dirname(_AUDIT_LOG), exist_ok=True)
+    entry = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "tool": tool_name,
+        "args": arguments,
+        "result": result[:200],
+    }
+    with open(_AUDIT_LOG, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def _confirm(tool_name: str, arguments: dict, config: dict) -> bool:
+    """Prompt user to confirm a destructive action. Returns True to proceed."""
+    if not config.get("loop", {}).get("confirm_destructive_actions", True):
+        return True
+    prompt = f"[hypr-agent] Allow {tool_name}({arguments})? [y/N] "
+    try:
+        answer = input(prompt).strip().lower()
+        return answer in ("y", "yes")
+    except (EOFError, KeyboardInterrupt):
+        return False
+
+
+def _dispatch_tool(name: str, arguments: dict, config: dict | None = None) -> str:
     """Dispatch a tool call by name and return the result as a string."""
+    if config is not None and name in _DESTRUCTIVE_TOOLS:
+        if not _confirm(name, arguments, config):
+            return "Cancelled by user"
     try:
         match name:
             case "take_screenshot":
@@ -143,7 +180,7 @@ class AgentLoop:
     Termination conditions:
         - task_complete: backend signals stop_reason == "end_turn" with no tool calls
         - max_steps_reached: step count >= config loop.max_steps
-        - kill_switch_triggered: user presses kill_switch_key combination (M10)
+        - kill_switch_triggered: SIGINT received (Ctrl+C)
     """
 
     def __init__(self, config: dict, backend: BackendAdapter) -> None:
@@ -151,7 +188,11 @@ class AgentLoop:
         self.backend = backend
         self._step = 0
         self._history: list[dict] = []
-        # TODO M10: Initialize kill switch listener
+        self._killed = False
+        signal.signal(signal.SIGINT, self._handle_sigint)
+
+    def _handle_sigint(self, signum: int, frame: object) -> None:
+        self._killed = True
 
     def run(self, task: str) -> None:
         """Run the agent loop until termination condition met.
@@ -161,6 +202,7 @@ class AgentLoop:
         """
         self._step = 0
         self._history = []
+        self._killed = False
 
         while True:
             perception = self._perceive()
@@ -232,7 +274,8 @@ class AgentLoop:
         """
         results = []
         for tc in response.tool_calls:
-            result_str = _dispatch_tool(tc["name"], tc["input"])
+            result_str = _dispatch_tool(tc["name"], tc["input"], self.config)
+            _audit(tc["name"], tc["input"], result_str)
             results.append({
                 "type": "tool_result",
                 "tool_use_id": tc["id"],
@@ -242,6 +285,8 @@ class AgentLoop:
 
     def _check_termination(self, response: AgentResponse) -> bool:
         """Return True if loop should stop."""
+        if self._killed:
+            return True
         max_steps = self.config.get("loop", {}).get("max_steps", 20)
         if self._step >= max_steps:
             return True

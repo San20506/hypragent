@@ -1,4 +1,6 @@
-"""Ollama backend adapter. Implemented in Milestone M11."""
+"""Ollama backend adapter — Milestone M11."""
+
+import ollama
 
 from agent.backends.base import AgentResponse, BackendAdapter
 
@@ -8,7 +10,8 @@ class OllamaBackend(BackendAdapter):
 
     def __init__(self, config: dict) -> None:
         self.config = config
-        # TODO M11: Initialize ollama client with endpoint from config
+        self._model: str = config["model"]
+        self._client = ollama.Client(host=config.get("endpoint", "http://localhost:11434"))
 
     def send_message(
         self,
@@ -16,12 +19,60 @@ class OllamaBackend(BackendAdapter):
         tools: list[dict],
         images: list[str],
     ) -> AgentResponse:
-        # TODO M11: Implement Ollama API call
-        raise NotImplementedError("M11: OllamaBackend.send_message not yet implemented")
+        # Convert tools to Ollama function format
+        ollama_tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t.get("description", ""),
+                    "parameters": t.get("inputSchema", {}),
+                },
+            }
+            for t in tools
+        ] if tools else None
+
+        # Build messages, flattening any list content to text
+        api_messages = []
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+            if isinstance(content, list):
+                text = " ".join(
+                    b.get("text", "") or b.get("content", "")
+                    for b in content if isinstance(b, dict)
+                )
+                api_messages.append({"role": role, "content": text})
+            else:
+                api_messages.append({"role": role, "content": content})
+
+        # Inject screenshots into last user message
+        if images and api_messages:
+            api_messages[-1]["images"] = images
+
+        response = self._client.chat(
+            model=self._model,
+            messages=api_messages,
+            tools=ollama_tools,
+        )
+
+        msg = response.message
+        content = msg.content or ""
+        tool_calls: list[dict] = []
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            for i, tc in enumerate(msg.tool_calls):
+                tool_calls.append({
+                    "name": tc.function.name,
+                    "input": dict(tc.function.arguments),
+                    "id": f"ollama_{i}",
+                })
+
+        stop_reason = "end_turn" if not tool_calls else "tool_use"
+        return AgentResponse(content=content, tool_calls=tool_calls, stop_reason=stop_reason)
 
     def get_model_name(self) -> str:
-        raise NotImplementedError("M11: OllamaBackend.get_model_name not yet implemented")
+        return self._model
 
     def supports_vision(self) -> bool:
-        # TODO M11: Check if loaded model supports vision
-        raise NotImplementedError("M11: OllamaBackend.supports_vision not yet implemented")
+        # Vision models: llava, minicpm-v, bakllava — heuristic
+        return any(v in self._model.lower() for v in ("llava", "minicpm", "bakllava", "vision"))
