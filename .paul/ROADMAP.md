@@ -7,17 +7,17 @@ HyprAgent builds from zero to a fully functional Wayland desktop automation agen
 ## Current Milestone
 
 **v1.0 MVP** (v1.0.0)
-Status: In progress
-Phases: 1 of 4 complete
+Status: ✅ Complete (2026-04-03)
+Phases: 4 of 4 complete
 
 ## Phases
 
 | Phase | Name | Plans | Status | Completed |
 |-------|------|-------|--------|-----------|
 | 1 | Design | 1 | ✅ Complete | 2026-04-02 |
-| 2 | Construct Core | 5 | Not started | - |
-| 3 | Construct Extended | 4 | Not started | - |
-| 4 | Test & Release | 2 | Not started | - |
+| 2 | Construct Core | 5 | ✅ Complete | 2026-04-02 |
+| 3 | Construct Extended | 3 | ✅ Complete | 2026-04-02 |
+| 4 | Test & Release | 2 | ✅ Complete | 2026-04-03 |
 
 ## Phase Details
 

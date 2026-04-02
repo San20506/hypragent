@@ -26,8 +26,8 @@ cp config.yaml.example config.yaml
 # Edit config.yaml — set backend.active and export your API key
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# Start ydotoold daemon (input injection)
-systemctl --user enable --now ydotoold
+# Start ydotool daemon (input injection)
+systemctl --user enable --now ydotool
 
 # Install Playwright browser
 uv run playwright install chromium
@@ -50,10 +50,26 @@ claude mcp add hypr-agent -- uv run --project /path/to/hypragent hypragent
 `file_list`, `file_read`, `file_write`, `file_move`, `file_delete`,
 `terminal_run`
 
+## Run Agent Directly
+
+```python
+import yaml
+from agent.backends import load_backend
+from agent.loop import AgentLoop
+
+config = yaml.safe_load(open("config.yaml"))
+backend = load_backend(config)
+loop = AgentLoop(config, backend)
+loop.run("Open a terminal and run 'echo hello'")
+```
+
+Press **Ctrl+C** to stop the agent at any time.
+
 ## Configuration
 
 See `config.yaml.example` for all options. Key settings:
 - `backend.active` — which AI backend to use (claude/gemini/ollama)
 - `loop.max_steps` — safety limit on autonomous steps
-- `loop.confirm_destructive_actions` — prompt before destructive file ops
-- `loop.kill_switch_key` — keyboard shortcut to abort running agent
+- `loop.confirm_destructive_actions` — prompt before destructive file/terminal ops
+- `loop.kill_switch_key` — keyboard shortcut to abort running agent (Ctrl+C always works)
+- Audit log: `~/.config/hypr-agent/audit.log` — JSON lines, one entry per tool call
