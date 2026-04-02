@@ -11,13 +11,13 @@ See: .paul/PROJECT.md (updated 2026-04-02)
 
 Milestone: v1.0 MVP (v1.0.0)
 Phase: 2 of 4 (Construct Core) — In Progress
-Plan: 02-04 created, awaiting approval
+Plan: 02-05 created, awaiting approval
 Status: PLAN created, ready for APPLY
-Last activity: 2026-04-02 — Created 02-04 M3 OCR plan
+Last activity: 2026-04-02 — Created 02-05 M4 Claude Backend plan
 
 Progress:
-- Milestone: [█████░░░░░] 50%
-- Phase 2: [██████░░░░] 60%
+- Milestone: [███████░░░] 65%
+- Phase 2: [████████░░] 80%
 
 ## Loop Position
 
@@ -55,9 +55,9 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-02
-Stopped at: Plan 02-03 unified
-Next action: /paul:plan for Phase 2 Plan 04 — M3 OCR (tools/ocr.py)
-Resume file: .paul/phases/02-construct-core/02-03-SUMMARY.md
+Stopped at: Plan 02-04 unified
+Next action: /paul:plan for Phase 2 Plan 05 — M4 Backend Adapter (agent/backends/claude.py)
+Resume file: .paul/phases/02-construct-core/02-04-SUMMARY.md
 
 ---
 *STATE.md — Updated after every significant action*
