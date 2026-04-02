@@ -16,6 +16,7 @@ from mcp.types import TextContent, Tool
 from tools.screenshot import capture_fullscreen, capture_region
 from tools.mouse import move_mouse, click, drag, scroll
 from tools.keyboard import type_text, press_key
+from tools.ocr import extract_text_fullscreen, extract_text_from_region
 
 
 server = Server("hypr-agent")
@@ -185,7 +186,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             except Exception as e:
                 return [TextContent(type="text", text=f"Error: {e}")]
         case "read_screen_text":
-            return _stub("M3", name)
+            try:
+                region = arguments.get("region")
+                if region:
+                    text = extract_text_from_region(
+                        region["x"], region["y"],
+                        region["width"], region["height"],
+                    )
+                else:
+                    text = extract_text_fullscreen()
+                return [TextContent(type="text", text=text)]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "browser_open":
             return _stub("M7", name)
         case "browser_navigate":
