@@ -13,6 +13,8 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+from tools.screenshot import capture_fullscreen, capture_region
+
 
 server = Server("hypr-agent")
 
@@ -130,7 +132,18 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     match name:
         case "take_screenshot":
-            return _stub("M1", name)
+            try:
+                region = arguments.get("region")
+                if region:
+                    b64 = capture_region(
+                        region["x"], region["y"],
+                        region["width"], region["height"],
+                    )
+                else:
+                    b64 = capture_fullscreen()
+                return [TextContent(type="text", text=b64)]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "mouse_move":
             return _stub("M2", name)
         case "mouse_click":

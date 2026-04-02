@@ -11,13 +11,13 @@ See: .paul/PROJECT.md (updated 2026-04-02)
 
 Milestone: v1.0 MVP (v1.0.0)
 Phase: 2 of 4 (Construct Core) — In Progress
-Plan: 02-01 complete (1/5 plans done)
-Status: Ready for next PLAN (02-02)
-Last activity: 2026-04-02 — 02-01 M0 Environment Setup unified
+Plan: 02-02 complete (2/5 plans done)
+Status: Ready for next PLAN (02-03)
+Last activity: 2026-04-02 — 02-02 M1 Screenshot unified
 
 Progress:
-- Milestone: [███░░░░░░░] 30%
-- Phase 2: [██░░░░░░░░] 20%
+- Milestone: [████░░░░░░] 35%
+- Phase 2: [████░░░░░░] 40%
 
 ## Loop Position
 
@@ -56,8 +56,8 @@ None yet.
 
 Last session: 2026-04-02
 Stopped at: Plan 01-01 created
-Next action: /paul:plan for Phase 2 Plan 02 — M1 Screenshot capture (tools/screenshot.py)
-Resume file: .paul/phases/02-construct-core/02-01-SUMMARY.md
+Next action: /paul:plan for Phase 2 Plan 03 — M2 Mouse & keyboard (tools/mouse.py, tools/keyboard.py)
+Resume file: .paul/phases/02-construct-core/02-02-SUMMARY.md
 
 ---
 *STATE.md — Updated after every significant action*

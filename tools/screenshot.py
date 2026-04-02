@@ -1,7 +1,13 @@
-"""Screenshot capture tool. Implemented in Milestone M1.
+"""Screenshot capture tool. Milestone M1.
 
 System dependency: grim (pacman -S grim slurp)
 """
+
+import base64
+import os
+import subprocess
+import tempfile
+import uuid
 
 
 def capture_fullscreen() -> str:
@@ -9,9 +15,24 @@ def capture_fullscreen() -> str:
 
     Returns:
         Base64-encoded PNG string suitable for passing to AI backend.
+
+    Raises:
+        RuntimeError: If grim exits non-zero.
     """
-    # TODO M1: Implement using grim subprocess
-    raise NotImplementedError("M1: capture_fullscreen not yet implemented")
+    path = os.path.join(tempfile.gettempdir(), f"hypr-screenshot-{uuid.uuid4()}.png")
+    try:
+        result = subprocess.run(
+            ["grim", path],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"grim failed: {result.stderr.strip()}")
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("ascii")
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
 
 
 def capture_region(x: int, y: int, width: int, height: int) -> str:
@@ -25,9 +46,28 @@ def capture_region(x: int, y: int, width: int, height: int) -> str:
 
     Returns:
         Base64-encoded PNG string.
+
+    Raises:
+        ValueError: If width or height <= 0.
+        RuntimeError: If grim exits non-zero.
     """
-    # TODO M1: Implement using grim -g "x,y widthxheight"
-    raise NotImplementedError("M1: capture_region not yet implemented")
+    if width <= 0 or height <= 0:
+        raise ValueError(f"width and height must be > 0, got {width}x{height}")
+
+    path = os.path.join(tempfile.gettempdir(), f"hypr-screenshot-{uuid.uuid4()}.png")
+    try:
+        result = subprocess.run(
+            ["grim", "-g", f"{x},{y} {width}x{height}", path],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"grim failed: {result.stderr.strip()}")
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("ascii")
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
 
 
 def save_screenshot(path: str) -> None:
@@ -35,6 +75,14 @@ def save_screenshot(path: str) -> None:
 
     Args:
         path: Absolute path where PNG file will be saved.
+
+    Raises:
+        RuntimeError: If grim exits non-zero.
     """
-    # TODO M1: Implement using grim path
-    raise NotImplementedError("M1: save_screenshot not yet implemented")
+    result = subprocess.run(
+        ["grim", path],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"grim failed: {result.stderr.strip()}")
