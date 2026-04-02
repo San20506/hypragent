@@ -1,8 +1,32 @@
-"""Browser automation tool via Playwright. Implemented in Milestone M7.
+"""Browser automation tool via Playwright — Milestone M7.
 
 Python dependency: playwright (uv run playwright install chromium)
-Wayland: Chromium must be launched with --ozone-platform=wayland
+Wayland: Chromium launched with --ozone-platform=wayland, headless=False.
+
+Module-level singleton keeps the browser alive across tool calls in a session.
+Call browser_close() to tear down between tasks if needed.
 """
+
+import base64
+
+from playwright.sync_api import Browser, Page, Playwright, sync_playwright
+
+
+_playwright_ctx: Playwright | None = None
+_browser: Browser | None = None
+_page: Page | None = None
+
+
+def _ensure_browser() -> Page:
+    global _playwright_ctx, _browser, _page
+    if _page is None:
+        _playwright_ctx = sync_playwright().start()
+        _browser = _playwright_ctx.chromium.launch(
+            headless=False,
+            args=["--ozone-platform=wayland"],
+        )
+        _page = _browser.new_page()
+    return _page
 
 
 def browser_open(url: str) -> None:
@@ -11,8 +35,8 @@ def browser_open(url: str) -> None:
     Args:
         url: URL to open, including scheme (https://).
     """
-    # TODO M7: Initialize Playwright, launch Chromium with Wayland flags, navigate
-    raise NotImplementedError("M7: browser_open not yet implemented")
+    page = _ensure_browser()
+    page.goto(url, wait_until="domcontentloaded")
 
 
 def browser_navigate(url: str) -> None:
@@ -21,8 +45,8 @@ def browser_navigate(url: str) -> None:
     Args:
         url: URL to navigate to.
     """
-    # TODO M7: Call page.goto(url)
-    raise NotImplementedError("M7: browser_navigate not yet implemented")
+    page = _ensure_browser()
+    page.goto(url, wait_until="domcontentloaded")
 
 
 def browser_click(selector: str) -> None:
@@ -31,8 +55,7 @@ def browser_click(selector: str) -> None:
     Args:
         selector: CSS selector string, e.g. "button[type=submit]".
     """
-    # TODO M7: Call page.click(selector)
-    raise NotImplementedError("M7: browser_click not yet implemented")
+    _ensure_browser().click(selector)
 
 
 def browser_type(selector: str, text: str) -> None:
@@ -42,8 +65,7 @@ def browser_type(selector: str, text: str) -> None:
         selector: CSS selector for the input element.
         text: Text to type.
     """
-    # TODO M7: Call page.fill(selector, text)
-    raise NotImplementedError("M7: browser_type not yet implemented")
+    _ensure_browser().fill(selector, text)
 
 
 def browser_scroll(direction: str, amount: int) -> None:
@@ -53,8 +75,10 @@ def browser_scroll(direction: str, amount: int) -> None:
         direction: "up" or "down".
         amount: Pixel amount to scroll.
     """
-    # TODO M7: Use page.evaluate("window.scrollBy(...)")
-    raise NotImplementedError("M7: browser_scroll not yet implemented")
+    if direction not in ("up", "down"):
+        raise ValueError(f"Unknown direction: {direction!r}. Must be 'up' or 'down'")
+    delta = -amount if direction == "up" else amount
+    _ensure_browser().evaluate(f"window.scrollBy(0, {delta})")
 
 
 def browser_screenshot() -> str:
@@ -63,8 +87,8 @@ def browser_screenshot() -> str:
     Returns:
         Base64-encoded PNG string of page screenshot.
     """
-    # TODO M7: Use page.screenshot() and encode to base64
-    raise NotImplementedError("M7: browser_screenshot not yet implemented")
+    raw = _ensure_browser().screenshot(type="png")
+    return base64.b64encode(raw).decode("ascii")
 
 
 def browser_get_text(selector: str) -> str:
@@ -76,11 +100,16 @@ def browser_get_text(selector: str) -> str:
     Returns:
         Inner text content of the element.
     """
-    # TODO M7: Use page.inner_text(selector)
-    raise NotImplementedError("M7: browser_get_text not yet implemented")
+    return _ensure_browser().inner_text(selector)
 
 
 def browser_close() -> None:
     """Close the browser and release Playwright resources."""
-    # TODO M7: Call browser.close() and cleanup
-    raise NotImplementedError("M7: browser_close not yet implemented")
+    global _playwright_ctx, _browser, _page
+    if _browser is not None:
+        _browser.close()
+        _browser = None
+        _page = None
+    if _playwright_ctx is not None:
+        _playwright_ctx.stop()
+        _playwright_ctx = None

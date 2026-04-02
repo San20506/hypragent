@@ -20,6 +20,10 @@ from tools.keyboard import type_text, press_key
 from tools.ocr import extract_text_fullscreen, extract_text_from_region
 from tools.files import file_list, file_read, file_write, file_move, file_delete
 from tools.terminal import terminal_run as _terminal_run
+from tools.browser import (
+    browser_open, browser_navigate, browser_click,
+    browser_type, browser_scroll, browser_get_text,
+)
 
 
 server = Server("hypr-agent")
@@ -202,17 +206,41 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             except Exception as e:
                 return [TextContent(type="text", text=f"Error: {e}")]
         case "browser_open":
-            return _stub("M7", name)
+            try:
+                browser_open(arguments["url"])
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "browser_navigate":
-            return _stub("M7", name)
+            try:
+                browser_navigate(arguments["url"])
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "browser_click":
-            return _stub("M7", name)
+            try:
+                browser_click(arguments["selector"])
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "browser_type":
-            return _stub("M7", name)
+            try:
+                browser_type(arguments["selector"], arguments["text"])
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "browser_scroll":
-            return _stub("M7", name)
+            try:
+                browser_scroll(arguments["direction"], arguments.get("amount", 300))
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "browser_get_text":
-            return _stub("M7", name)
+            try:
+                text = browser_get_text(arguments["selector"])
+                return [TextContent(type="text", text=text)]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "file_list":
             try:
                 entries = file_list(arguments["path"])
