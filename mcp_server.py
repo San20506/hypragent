@@ -14,6 +14,8 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from tools.screenshot import capture_fullscreen, capture_region
+from tools.mouse import move_mouse, click, drag, scroll
+from tools.keyboard import type_text, press_key
 
 
 server = Server("hypr-agent")
@@ -145,17 +147,43 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             except Exception as e:
                 return [TextContent(type="text", text=f"Error: {e}")]
         case "mouse_move":
-            return _stub("M2", name)
+            try:
+                move_mouse(arguments["x"], arguments["y"])
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "mouse_click":
-            return _stub("M2", name)
+            try:
+                click(arguments["x"], arguments["y"], arguments.get("button", "left"))
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "mouse_drag":
-            return _stub("M2", name)
+            try:
+                drag(arguments["from_x"], arguments["from_y"],
+                     arguments["to_x"], arguments["to_y"])
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "mouse_scroll":
-            return _stub("M2", name)
+            try:
+                scroll(arguments["x"], arguments["y"],
+                       arguments["direction"], arguments.get("amount", 3))
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "keyboard_type":
-            return _stub("M2", name)
+            try:
+                type_text(arguments["text"])
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "keyboard_press":
-            return _stub("M2", name)
+            try:
+                press_key(arguments["key"])
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "read_screen_text":
             return _stub("M3", name)
         case "browser_open":
