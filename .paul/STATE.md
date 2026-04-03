@@ -5,7 +5,7 @@
 See: .paul/PROJECT.md (updated 2026-04-02)
 
 **Core value:** Any AI client can control a Hyprland/Wayland desktop natively using MCP tools, without Docker or sandboxing, on CachyOS.
-**Current focus:** Phase 2 — Construct Core (M0–M4)
+**Current focus:** Project complete — v1.0.0 released
 
 ## Current Position
 
