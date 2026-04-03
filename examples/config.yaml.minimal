@@ -1,0 +1,20 @@
+# Minimal config — Claude backend, sensible defaults
+# Copy to config.yaml and export ANTHROPIC_API_KEY
+
+backend:
+  active: claude
+  claude:
+    model: claude-sonnet-4-6
+    api_key_env: ANTHROPIC_API_KEY
+
+loop:
+  max_steps: 10
+  screenshot_on_every_step: true
+  confirm_destructive_actions: true
+
+safety:
+  command_blocklist:
+    - "rm -rf /"
+    - "dd if="
+    - "mkfs"
+    - ":(){:|:&};:"

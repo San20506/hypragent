@@ -1,11 +1,46 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
-.venv/
-.env
-config.yaml
-playwright-report/
-.playwright/
+*.pyd
 *.egg-info/
 dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+config.yaml          # user config — never commit; use config.yaml.example
+
+# Test artifacts
 .pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Playwright
+playwright-report/
+.playwright/
+test-results/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (user-local, not project)
+*.log
+
+# uv lock (committed intentionally — remove this line to track it)
+# uv.lock

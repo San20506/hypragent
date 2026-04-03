@@ -1,56 +1,107 @@
 # HyprAgent
 
-Native, model-agnostic computer use agent for Hyprland/Wayland. Exposes full desktop control as MCP tools — works with Claude Code, OpenCode, or any MCP client.
+**Native, model-agnostic computer use agent for Hyprland/Wayland.**
 
-## Prerequisites
+HyprAgent exposes full desktop control as MCP tools — works with Claude Code, OpenCode, or any MCP client. No Docker, no sandbox, no XWayland. Runs directly on your live Hyprland/CachyOS desktop.
 
-System packages (CachyOS/Arch):
+---
+
+## Features
+
+| Category | Tools |
+|----------|-------|
+| **Screen** | `take_screenshot` (fullscreen + region), `read_screen_text` (OCR) |
+| **Mouse** | `mouse_move`, `mouse_click`, `mouse_drag`, `mouse_scroll` |
+| **Keyboard** | `keyboard_type`, `keyboard_press` |
+| **Browser** | `browser_open`, `browser_navigate`, `browser_click`, `browser_type`, `browser_scroll`, `browser_get_text` |
+| **Files** | `file_list`, `file_read`, `file_write`, `file_move`, `file_delete` |
+| **Terminal** | `terminal_run` |
+
+**20 tools total.** All accessible via MCP stdio transport.
+
+**Multi-backend:** Claude, Gemini, Ollama — swap via one config line.
+
+**Safety built-in:** kill switch (Ctrl+C), audit log, destructive action confirmation.
+
+---
+
+## Quick Start
+
+### 1. Install system dependencies
+
 ```bash
 sudo pacman -S grim slurp ydotool wl-clipboard tesseract tesseract-data-eng
 sudo modprobe uinput
-sudo usermod -aG input $USER   # re-login required
+sudo usermod -aG input $USER   # log out and back in after this
 ```
 
-Python:
+### 2. Install Python tooling
+
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-## Quick Start
+### 3. Clone and set up
 
 ```bash
-git clone <repo-url> hypragent
+git clone https://github.com/yourname/hypragent
 cd hypragent
 uv sync
 cp config.yaml.example config.yaml
-# Edit config.yaml — set backend.active and export your API key
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Start ydotool daemon (input injection)
-systemctl --user enable --now ydotool
-
-# Install Playwright browser
-uv run playwright install chromium
-
-# Run MCP server
-uv run hypragent
 ```
 
-## MCP Setup (Claude Code)
+### 4. Configure
+
+Edit `config.yaml` and set your backend:
+
+```yaml
+backend:
+  active: claude   # or gemini / ollama
+```
+
+Export your API key:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...   # for Claude
+export GEMINI_API_KEY=...             # for Gemini
+# Ollama needs no key — just run ollama serve
+```
+
+### 5. Start services
+
+```bash
+systemctl --user enable --now ydotool
+uv run playwright install chromium
+```
+
+### 6. Add to Claude Code (MCP)
 
 ```bash
 claude mcp add hypr-agent -- uv run --project /path/to/hypragent hypragent
 ```
 
-## Available Tools
+Or run the server directly:
 
-`take_screenshot`, `mouse_move`, `mouse_click`, `mouse_drag`, `mouse_scroll`,
-`keyboard_type`, `keyboard_press`, `read_screen_text`,
-`browser_open`, `browser_navigate`, `browser_click`, `browser_type`, `browser_scroll`, `browser_get_text`,
-`file_list`, `file_read`, `file_write`, `file_move`, `file_delete`,
-`terminal_run`
+```bash
+uv run hypragent
+```
 
-## Run Agent Directly
+---
+
+## Usage
+
+### Via MCP client (Claude Code)
+
+Once added as an MCP server, all 20 tools are available to Claude Code automatically. Example prompts:
+
+```
+Take a screenshot and tell me what's on screen
+Click on the Firefox icon at position 100, 200
+Open https://example.com in the browser and get the page title
+Run 'git status' in the terminal and show me the output
+```
+
+### Directly in Python
 
 ```python
 import yaml
@@ -60,16 +111,55 @@ from agent.loop import AgentLoop
 config = yaml.safe_load(open("config.yaml"))
 backend = load_backend(config)
 loop = AgentLoop(config, backend)
-loop.run("Open a terminal and run 'echo hello'")
+loop.run("Open a terminal and run 'echo hello world'")
 ```
 
 Press **Ctrl+C** to stop the agent at any time.
 
+---
+
 ## Configuration
 
-See `config.yaml.example` for all options. Key settings:
-- `backend.active` — which AI backend to use (claude/gemini/ollama)
-- `loop.max_steps` — safety limit on autonomous steps
-- `loop.confirm_destructive_actions` — prompt before destructive file/terminal ops
-- `loop.kill_switch_key` — keyboard shortcut to abort running agent (Ctrl+C always works)
-- Audit log: `~/.config/hypr-agent/audit.log` — JSON lines, one entry per tool call
+See [`config.yaml.example`](config.yaml.example) for all options, and [`CONFIGURATION.md`](docs/CONFIGURATION.md) for detailed documentation.
+
+Key settings:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `backend.active` | `claude` | AI backend: `claude`, `gemini`, `ollama` |
+| `loop.max_steps` | `20` | Max perceive→act cycles before abort |
+| `loop.confirm_destructive_actions` | `true` | Prompt before file write/move/delete |
+| `loop.kill_switch_key` | `ctrl+shift+escape` | Hotkey to abort agent |
+
+Audit log: `~/.config/hypr-agent/audit.log` (JSON lines, one entry per tool call)
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [INSTALLATION.md](docs/INSTALLATION.md) | Detailed setup and dependency guide |
+| [USAGE.md](docs/USAGE.md) | Commands, workflows, advanced use cases |
+| [CONFIGURATION.md](docs/CONFIGURATION.md) | All config options explained |
+| [API.md](docs/API.md) | MCP tool reference (inputs, outputs, schemas) |
+| [FAQ.md](docs/FAQ.md) | Troubleshooting and common errors |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting |
+
+---
+
+## Requirements
+
+- CachyOS / Arch Linux with Hyprland
+- Python 3.11+
+- `uv` package manager
+- `grim`, `ydotool`, `tesseract`, `wl-clipboard` (system packages)
+- Playwright Chromium (installed via `uv run playwright install chromium`)
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
