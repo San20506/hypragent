@@ -4,10 +4,28 @@ System dependency: grim (pacman -S grim slurp)
 """
 
 import base64
-import os
 import subprocess
-import tempfile
-import uuid
+
+
+def _capture(*grim_args: str) -> str:
+    """Run grim with output to stdout and return base64-encoded PNG.
+
+    Args:
+        *grim_args: Additional arguments inserted before the output path ("-").
+
+    Returns:
+        Base64-encoded PNG string suitable for passing to AI backend.
+
+    Raises:
+        RuntimeError: If grim exits non-zero.
+    """
+    result = subprocess.run(
+        ["grim", *grim_args, "-"],
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"grim failed: {result.stderr.decode().strip()}")
+    return base64.b64encode(result.stdout).decode("ascii")
 
 
 def capture_fullscreen() -> str:
@@ -19,20 +37,7 @@ def capture_fullscreen() -> str:
     Raises:
         RuntimeError: If grim exits non-zero.
     """
-    path = os.path.join(tempfile.gettempdir(), f"hypr-screenshot-{uuid.uuid4()}.png")
-    try:
-        result = subprocess.run(
-            ["grim", path],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"grim failed: {result.stderr.strip()}")
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode("ascii")
-    finally:
-        if os.path.exists(path):
-            os.remove(path)
+    return _capture()
 
 
 def capture_region(x: int, y: int, width: int, height: int) -> str:
@@ -53,21 +58,7 @@ def capture_region(x: int, y: int, width: int, height: int) -> str:
     """
     if width <= 0 or height <= 0:
         raise ValueError(f"width and height must be > 0, got {width}x{height}")
-
-    path = os.path.join(tempfile.gettempdir(), f"hypr-screenshot-{uuid.uuid4()}.png")
-    try:
-        result = subprocess.run(
-            ["grim", "-g", f"{x},{y} {width}x{height}", path],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"grim failed: {result.stderr.strip()}")
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode("ascii")
-    finally:
-        if os.path.exists(path):
-            os.remove(path)
+    return _capture("-g", f"{x},{y} {width}x{height}")
 
 
 def save_screenshot(path: str) -> None:
@@ -82,7 +73,6 @@ def save_screenshot(path: str) -> None:
     result = subprocess.run(
         ["grim", path],
         capture_output=True,
-        text=True,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"grim failed: {result.stderr.strip()}")
+        raise RuntimeError(f"grim failed: {result.stderr.decode().strip()}")
