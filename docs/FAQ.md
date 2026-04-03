@@ -56,6 +56,51 @@ systemctl --user restart xdg-desktop-portal xdg-desktop-portal-hyprland
 
 ---
 
+## Hyprland Specifics
+
+### Window focus issues / clicks land on wrong window
+
+**Cause:** Hyprland's focus model differs from X11. The clicked window must be focused.
+
+**Fix:** Use `mouse_click` instead of `mouse_move` + separate click, or add a small delay between move and click in your task.
+
+---
+
+### ydotool doesn't work in certain apps
+
+Some apps (like Electron apps, certain Qt apps) may not respond to ydotool input due to Wayland security restrictions. This is a known limitation of the Wayland protocol, not a HyprAgent bug.
+
+---
+
+## API Keys
+
+### `ANTHROPIC_API_KEY not set`
+
+**Fix:**
+```bash
+# Add to your shell profile (~/.bashrc or ~/.zshrc)
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Reload
+source ~/.bashrc
+```
+
+For temporary testing:
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+uv run hypragent
+```
+
+---
+
+### API key is correct but still fails
+
+- Verify no extra spaces: `echo $ANTHROPIC_API_KEY`
+- Check the key hasn't expired
+- Ensure you have API credits available
+
+---
+
 ### Playwright fails to launch / `browser not found`
 
 **Cause:** Chromium not installed via Playwright.

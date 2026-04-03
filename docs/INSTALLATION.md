@@ -1,8 +1,14 @@
 # Installation Guide
 
+This guide walks you through setting up HyprAgent on CachyOS or Arch Linux with Hyprland.
+
+---
+
 ## Prerequisites
 
-HyprAgent requires CachyOS or Arch Linux with a running Hyprland Wayland compositor.
+- CachyOS or Arch Linux with a running Hyprland Wayland compositor
+- Python 3.11 or newer
+- An account with sudo access
 
 ---
 

@@ -1,10 +1,12 @@
-# Minimal config — Claude backend, sensible defaults
-# Copy to config.yaml and export ANTHROPIC_API_KEY
+# Minimal HyprAgent config
+# Copy to config.yaml and edit as needed
+#
+# Required: export ANTHROPIC_API_KEY=sk-ant-... before running
 
 backend:
   active: claude
   claude:
-    model: claude-sonnet-4-6
+    model: claude-sonnet-4-20250514
     api_key_env: ANTHROPIC_API_KEY
 
 loop:

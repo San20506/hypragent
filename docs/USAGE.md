@@ -173,3 +173,54 @@ uv run pytest tests/ -v
 # Specific test
 uv run pytest tests/test_integration.py::test_terminal_run_echo -v
 ```
+
+---
+
+## Advanced: MCP Server
+
+The MCP server (`mcp_server.py`) exposes all 20 tools over stdio. It's compatible with any MCP client.
+
+### Direct server run
+
+```bash
+# Start the server (blocks, Ctrl+C to stop)
+uv run hypragent
+
+# Or run the Python module directly
+uv run python -m hypragent
+```
+
+### Testing MCP communication
+
+You can test the MCP server directly:
+
+```bash
+# Send a JSON-RPC initialize request
+echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}' | uv run hypragent
+```
+
+### MCP client examples
+
+#### Claude Code
+
+```bash
+claude mcp add hypr-agent -- uv run --project /path/to/hypragent hypragent
+
+# List available tools
+claude mcp list
+```
+
+#### OpenCode
+
+Add to your OpenCode MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "hypr-agent": {
+      "command": "uv",
+      "args": ["run", "--project", "/path/to/hypragent", "hypragent"]
+    }
+  }
+}
+```

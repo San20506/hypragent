@@ -7,7 +7,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.0] — 2026-04-03
+## [0.1.0] — 2026-04-03
 
 ### Added
 
@@ -59,7 +59,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Planned (v1.1)
+### Planned (v0.2.0)
+
 - Migrate `google-generativeai` → `google-genai` SDK
 - Audit log rotation and size limits
 - Multi-monitor support
@@ -68,4 +69,4 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-*HyprAgent v1.0.0 — initial release, 2026-04-03*
+*HyprAgent v0.1.0 — initial release, 2026-04-03*

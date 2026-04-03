@@ -148,6 +148,39 @@ Audit log: `~/.config/hypr-agent/audit.log` (JSON lines, one entry per tool call
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting |
 
+## Suggested Folder Structure
+
+```
+hypragent/
+├── agent/                    # Agent loop and backend implementations
+│   ├── backends/            # Claude, Gemini, Ollama adapters
+│   └── loop.py              # Main agent loop (perceive → reason → act)
+├── tools/                   # Individual tool implementations
+│   ├── screenshot.py        # grim integration
+│   ├── ocr.py               # tesseract integration
+│   ├── mouse.py             # ydotool mouse control
+│   ├── keyboard.py          # ydotool keyboard control
+│   ├── browser.py           # Playwright browser automation
+│   ├── files.py             # File operations
+│   └── terminal.py          # Shell command execution
+├── examples/                # Usage examples
+│   ├── basic_task.py       # Simple agent task
+│   ├── multi_backend.py    # Backend switching example
+│   ├── use_tools_directly.py
+│   └── config.yaml.minimal # Minimal config
+├── tests/                   # Test suite
+├── docs/                    # Documentation
+│   ├── INSTALLATION.md
+│   ├── USAGE.md
+│   ├── CONFIGURATION.md
+│   ├── API.md
+│   ├── FAQ.md
+│   └── SECURITY.md
+├── mcp_server.py            # MCP stdio server
+├── config.yaml.example      # Config template
+└── install-deps.sh          # System dependency installer
+```
+
 ---
 
 ## Requirements
