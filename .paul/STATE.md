@@ -10,26 +10,28 @@ See: .paul/PROJECT.md (updated 2026-04-02)
 ## Current Position
 
 Milestone: v1.0 MVP (v1.0.0)
-Phase: 2 of 4 (Construct Core) — In Progress
-Plan: 04-02 created, awaiting approval
-Status: PLAN created, ready for APPLY
-Last activity: 2026-04-03 — Created 04-02 M12+M13 Integration+Release plan
+Phase: 4 of 4 (Test & Release) — ✅ COMPLETE
+Plan: 04-02 unified
+Status: COMPLETE — v1.0.0 tagged at b2ef615
+Last activity: 2026-04-03 — M12 integration tests + M13 release (v1.0.0)
 
 Progress:
-- Milestone: [█████████░] 97%
-- Phase 4: [█████░░░░░] 50%
+- Milestone: [██████████] 100% ✅
+- Phase 4: [██████████] 100% ✅
 
 MCP handlers: 20/20 wired ✓
 Agent loop: complete ✓
 Multi-backend: complete ✓ (Claude + Gemini + Ollama)
 Safety controls: complete ✓
+Integration tests: 26/26 pass ✓
+Release: v1.0.0 tagged ✓
 
 ## Loop Position
 
 Current loop state:
 ```
 PLAN ──▶ APPLY ──▶ UNIFY
-  ✓        ○        ○     [Plan created, awaiting approval]
+  ✓        ✓        ✓     [04-02 complete — project done]
 ```
 
 ## Accumulated Context
@@ -59,10 +61,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02
-Stopped at: Plan 04-01 unified (M10+M11 complete)
-Next action: /paul:plan for Phase 4 Plan 02 — M12 integration test + M13 release
-Resume file: .paul/phases/04-test-release/04-01-SUMMARY.md
+Last session: 2026-04-03
+Stopped at: Plan 04-02 unified — all phases complete, v1.0.0 released
+Next action: None — project complete. Future work: post-v1.0 improvements (google-genai migration, audit log rotation)
+Resume file: .paul/phases/04-test-release/04-02-SUMMARY.md
 
 ---
 *STATE.md — Updated after every significant action*
