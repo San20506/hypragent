@@ -1,29 +1,23 @@
-"""Mouse control tool — Milestone M2.
+"""Mouse control tool — evdev/UInput virtual mouse device.
 
-System dependency: ydotool + ydotoold daemon (pacman -S ydotool)
-Requires: uinput kernel module (modprobe uinput), user in input group.
+Uses the DeviceManager singleton (agent/device_manager.py) to inject absolute
+mouse positioning via EV_ABS events. No subprocess calls — events go directly
+to the Linux input subsystem via the HyprAgent Mouse virtual device.
 """
 
-import os
-import socket
-import struct
-import subprocess
 import time
 
-YDOTOOL_SOCKET = "/run/user/1000/.ydotool_socket"
+from evdev import ecodes as e
 
-_BUTTON_CODES = {
-    "left": "0xC0",
-    "right": "0xC1",
-    "middle": "0xC2",
-}
+from agent.device_manager import devices
+
+_BUTTON_MAP = {"left": e.BTN_LEFT, "right": e.BTN_RIGHT, "middle": e.BTN_MIDDLE}
 
 
-def _ydotool(*args: str) -> None:
-    env = {**os.environ, "YDOTOOL_SOCKET": YDOTOOL_SOCKET}
-    result = subprocess.run(["ydotool", *args], capture_output=True, text=True, env=env)
-    if result.returncode != 0:
-        raise RuntimeError(f"ydotool {args[0]} failed: {result.stderr.strip()}")
+def _resolve_button(name: str) -> int:
+    if name not in _BUTTON_MAP:
+        raise ValueError(f"Unknown button: {name!r}. Use: left, right, middle")
+    return _BUTTON_MAP[name]
 
 
 def move_mouse(x: int, y: int) -> None:
@@ -33,7 +27,9 @@ def move_mouse(x: int, y: int) -> None:
         x: Target X coordinate in screen pixels.
         y: Target Y coordinate in screen pixels.
     """
-    _ydotool("mousemove", "--absolute", "-x", str(x), "-y", str(y))
+    devices.mouse.write(e.EV_ABS, e.ABS_X, x)
+    devices.mouse.write(e.EV_ABS, e.ABS_Y, y)
+    devices.mouse.syn()
 
 
 def click(x: int, y: int, button: str = "left") -> None:
@@ -44,11 +40,12 @@ def click(x: int, y: int, button: str = "left") -> None:
         y: Target Y coordinate.
         button: "left", "right", or "middle".
     """
-    code = _BUTTON_CODES.get(button)
-    if code is None:
-        raise ValueError(f"Unknown button: {button!r}. Must be one of {list(_BUTTON_CODES)}")
-    _ydotool("mousemove", "--absolute", "-x", str(x), "-y", str(y))
-    _ydotool("click", code)
+    move_mouse(x, y)
+    btn = _resolve_button(button)
+    devices.mouse.write(e.EV_KEY, btn, 1)
+    devices.mouse.syn()
+    devices.mouse.write(e.EV_KEY, btn, 0)
+    devices.mouse.syn()
 
 
 def double_click(x: int, y: int) -> None:
@@ -58,10 +55,9 @@ def double_click(x: int, y: int) -> None:
         x: Target X coordinate.
         y: Target Y coordinate.
     """
-    _ydotool("mousemove", "--absolute", "-x", str(x), "-y", str(y))
-    _ydotool("click", "0xC0")
+    click(x, y)
     time.sleep(0.05)
-    _ydotool("click", "0xC0")
+    click(x, y)
 
 
 def drag(from_x: int, from_y: int, to_x: int, to_y: int) -> None:
@@ -73,17 +69,21 @@ def drag(from_x: int, from_y: int, to_x: int, to_y: int) -> None:
         to_x: Drag end X.
         to_y: Drag end Y.
     """
-    _ydotool("mousemove", "--absolute", "-x", str(from_x), "-y", str(from_y))
-    _ydotool("click", "0x40")  # button down, no release
-    _ydotool("mousemove", "--absolute", "-x", str(to_x), "-y", str(to_y))
-    _ydotool("click", "0x80")  # button up, no press
+    move_mouse(from_x, from_y)
+    devices.mouse.write(e.EV_KEY, e.BTN_LEFT, 1)
+    devices.mouse.syn()
+    steps = max(abs(to_x - from_x), abs(to_y - from_y)) // 10 or 1
+    for i in range(1, steps + 1):
+        ix = from_x + (to_x - from_x) * i // steps
+        iy = from_y + (to_y - from_y) * i // steps
+        move_mouse(ix, iy)
+        time.sleep(0.005)
+    devices.mouse.write(e.EV_KEY, e.BTN_LEFT, 0)
+    devices.mouse.syn()
 
 
 def scroll(x: int, y: int, direction: str, amount: int) -> None:
     """Scroll at coordinates.
-
-    ydotool 1.0.x has no scroll subcommand; inject REL_WHEEL events directly
-    via the ydotoold Unix datagram socket.
 
     Args:
         x: X coordinate to scroll at.
@@ -93,23 +93,9 @@ def scroll(x: int, y: int, direction: str, amount: int) -> None:
     """
     if direction not in ("up", "down"):
         raise ValueError(f"Unknown direction: {direction!r}. Must be 'up' or 'down'")
-    _ydotool("mousemove", "--absolute", "-x", str(x), "-y", str(y))
-
-    # Linux input_event: timeval(sec, usec) + type + code + value (24 bytes on 64-bit)
-    _EV_SYN, _EV_REL = 0, 2
-    _SYN_REPORT, _REL_WHEEL = 0, 8
-    wheel_value = 1 if direction == "up" else -1
-
-    def _event(t: int, c: int, v: int) -> bytes:
-        ts = time.time()
-        sec = int(ts)
-        usec = int((ts - sec) * 1_000_000)
-        return struct.pack("qqHHi", sec, usec, t, c, v)
-
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-    try:
-        for _ in range(amount):
-            sock.sendto(_event(_EV_REL, _REL_WHEEL, wheel_value), YDOTOOL_SOCKET)
-            sock.sendto(_event(_EV_SYN, _SYN_REPORT, 0), YDOTOOL_SOCKET)
-    finally:
-        sock.close()
+    move_mouse(x, y)
+    value = 1 if direction == "up" else -1
+    for _ in range(amount):
+        devices.mouse.write(e.EV_REL, e.REL_WHEEL, value)
+        devices.mouse.syn()
+        time.sleep(0.02)

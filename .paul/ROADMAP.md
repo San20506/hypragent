@@ -7,8 +7,8 @@ HyprAgent builds from zero to a fully functional Wayland desktop automation agen
 ## Current Milestone
 
 **v1.0 MVP** (v1.0.0)
-Status: ✅ Complete (2026-04-03)
-Phases: 5 of 5 complete
+Status: ✅ Complete (all 6 phases — 2026-04-04)
+Phases: 6 of 6 complete
 
 ## Phases
 
@@ -19,6 +19,7 @@ Phases: 5 of 5 complete
 | 3 | Construct Extended | 3 | ✅ Complete | 2026-04-02 |
 | 4 | Test & Release | 2 | ✅ Complete | 2026-04-03 |
 | 5 | Hyprland Integration | 1 | ✅ Complete | 2026-04-03 |
+| 6 | Virtual Input Layer | 2 | ✅ Complete | 2026-04-04 |
 
 ## Phase Details
 
@@ -128,5 +129,26 @@ Phases: 5 of 5 complete
 - [x] 05-01: M2.5 — Hyprland compositor tools
 
 ---
+
+### Phase 6: Virtual Input Layer
+
+**Goal:** Replace ydotool + ydotoold with python-evdev UInput virtual devices — a persistent virtual keyboard and mouse owned by the agent process. Eliminates cursor hijacking, removes daemon dependency, and enables true background operation.
+**Depends on:** Phase 2 M2 (input injection patterns); Phase 5 (Hyprland integration for validation)
+**Spec:** SPEC-002 — Virtual Input Device Layer
+**Research:** None — spec fully defines implementation
+
+**Scope:**
+- `agent/device_manager.py` — DeviceManager singleton creating HyprAgent Keyboard + HyprAgent Mouse UInput devices at MCP server startup
+- `tools/mouse.py` — rewrite using EV_ABS absolute positioning via DeviceManager
+- `tools/keyboard.py` — rewrite using evdev keycodes + static ASCII keymap + clipboard fallback
+- `mcp_server.py` — add lifespan hook for `devices.start()` / `devices.stop()`
+- `config.yaml` — add `tools.mouse.screen_width/height` and keyboard config
+- Remove all ydotool/ydotoold references from codebase and install.sh
+- 10 acceptance criteria (VD-01 through VD-10) from SPEC-002
+
+**Plans:**
+- [ ] 06-01: SPEC-002 implementation — evdev device manager + rewritten input tools
+
+---
 *Roadmap created: 2026-04-02*
-*Last updated: 2026-04-03 — Phase 5 complete, v1.0 MVP milestone complete*
+*Last updated: 2026-04-04 — Phase 6 added (Virtual Input Layer / SPEC-002)*

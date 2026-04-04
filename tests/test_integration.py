@@ -3,7 +3,7 @@
 Run non-Wayland tests:
     uv run pytest tests/test_integration.py -m "not wayland" -v
 
-Run all tests (requires Wayland session, grim, ydotoold):
+Run all tests (requires Wayland session, grim, /dev/uinput):
     uv run pytest tests/test_integration.py -v
 """
 

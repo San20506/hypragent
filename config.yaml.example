@@ -31,3 +31,16 @@ safety:
     - ":(){:|:&};:"                   # fork bomb
   screenshot_format: png              # png recommended for OCR accuracy
   ocr_language: eng                   # tesseract language code
+
+tools:
+  mouse:
+    screen_width: 2560     # REQUIRED — must match actual display resolution
+    screen_height: 1440    # REQUIRED — must match actual display resolution
+    # Find your resolution: hyprctl monitors -j | python3 -c "import json,sys; m=json.load(sys.stdin)[0]; print(m['width'], m['height'])"
+    click_delay_ms: 50     # delay between button down and up
+    drag_step_px: 10       # interpolation step for drag moves
+    scroll_delay_ms: 20    # delay between scroll ticks
+
+  keyboard:
+    type_delay_ms: 12      # delay between keystrokes (ms)
+    use_clipboard_fallback: true   # paste unmapped chars via wl-clipboard

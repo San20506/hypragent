@@ -31,6 +31,7 @@ from tools.hyprland import (
     active_window as _hy_active_window,
     focus_window as _hy_focus_window,
 )
+from agent.device_manager import devices
 
 
 server = Server("hypr-agent")
@@ -356,8 +357,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 
 async def _run() -> None:
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+    # TODO(06-02): pass real config object once config loader is wired end-to-end
+    # For now, DeviceManager.start() will use its built-in defaults (2560×1440)
+    devices.start()
+    try:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(read_stream, write_stream, server.create_initialization_options())
+    finally:
+        devices.stop()
 
 
 def main() -> None:

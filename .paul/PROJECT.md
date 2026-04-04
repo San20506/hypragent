@@ -14,15 +14,15 @@ Any AI client can control a Hyprland/Wayland desktop natively using MCP tools, w
 |-----------|-------|
 | Type | Application |
 | Version | 1.0.0 |
-| Status | Released — v1.0.0 + Phase 5 (25 tools) |
-| Last Updated | 2026-04-03 |
+| Status | Released — v1.0.0 + Phase 6 (evdev input layer, 25 tools) |
+| Last Updated | 2026-04-04 |
 
 ## Requirements
 
 ### Core Features
 
 - Screenshot capture (full screen + region) via `grim`
-- Mouse & keyboard injection via `ydotool` (Wayland-native, uinput)
+- Mouse & keyboard injection via `python-evdev` UInput (Wayland-native, background-safe)
 - OCR / screen text extraction via Tesseract
 - Browser automation via Playwright (Wayland mode)
 - File management tools (list, read, write, move, delete)
@@ -53,6 +53,7 @@ Any AI client can control a Hyprland/Wayland desktop natively using MCP tools, w
 - ✓ Integration test suite (29 tests, 26 non-wayland pass) — Phase 4 M12
 - ✓ v1.0.0: install.sh, README, config.yaml.example, git tag — Phase 4 M13
 - ✓ Hyprland compositor awareness: workspace_list, workspace_switch, clients, active_window, focus_window — Phase 5 M2.5
+- ✓ Virtual Input Layer: python-evdev UInput replaces ydotool — background-safe mouse + keyboard, 97-char KEYMAP — Phase 6
 
 ### Active (In Progress)
 None — v1.0.0 complete.
@@ -83,7 +84,7 @@ None — v1.0.0 complete.
 
 ### Technical Constraints
 - Wayland-native only — no XWayland fallback
-- `ydotool` requires `uinput` kernel module and `ydotoold` daemon running
+- `python-evdev` requires `uinput` kernel module and user in `input` group (`/dev/uinput` access)
 - `grim` requires `xdg-desktop-portal-hyprland` for screenshot permissions
 - Playwright must run with `--ozone-platform=wayland`
 - Python 3.11+ runtime
@@ -101,12 +102,12 @@ None — v1.0.0 complete.
 |----------|-----------|------|--------|
 | Wayland-native stack (no XWayland) | Target platform is Hyprland; XWayland adds complexity | 2026-04-02 | Active |
 | MCP as orchestration protocol | Model-agnostic; works with Claude Code, OpenCode, custom clients | 2026-04-02 | Active |
-| `ydotool` for input injection | Only Wayland-native input injector; requires uinput | 2026-04-02 | Active |
+| `python-evdev` UInput for input injection | Background-safe; no daemon; replaces ydotool + ydotoold | 2026-04-04 | Active |
 | `grim` for screenshots | Wayland-native, compositing-aware | 2026-04-02 | Active |
 | `tesseract` for OCR | Battle-tested; supplemented by AI vision when accuracy low | 2026-04-02 | Active |
 | `playwright` for browser | Full browser automation with Wayland support | 2026-04-02 | Active |
 | stdio transport for MCP | Best Claude Code compatibility | 2026-04-02 | Active |
-| ydotool scroll via SOCK_DGRAM socket | ydotool 1.0.4 has no scroll subcommand; direct EV_REL injection works | 2026-04-02 | Active |
+| ydotool scroll via SOCK_DGRAM socket | ydotool 1.0.4 has no scroll subcommand; direct EV_REL injection works | 2026-04-02 | Superseded — Phase 6 uses evdev REL_WHEEL directly |
 | google-generativeai 0.8.6 (deprecated SDK) | google-genai not installed in venv; FutureWarning noted, migration deferred | 2026-04-03 | Deferred |
 | Wayland tests marked @pytest.mark.wayland | Hardware-dependent tests skippable in CI | 2026-04-03 | Active |
 
@@ -114,7 +115,7 @@ None — v1.0.0 complete.
 
 | Metric | Target | Current | Status |
 |--------|--------|---------|--------|
-| Integration tests passing | 26+/26 non-wayland | 26/26 | ✅ |
+| Integration tests passing | 31/31 non-wayland | 31/31 | ✅ |
 | No sudo at runtime | 0 sudo calls | 0 | ✅ |
 | Backend swap works | claude/gemini/ollama | All 3 load | ✅ |
 | Install script success | Clean CachyOS install | install-deps.sh present | ✅ |
@@ -127,7 +128,7 @@ None — v1.0.0 complete.
 |-------|------------|-------|
 | Runtime | Python 3.11+ | via `uv` package manager |
 | Screenshot | grim + slurp | Wayland-native |
-| Input injection | ydotool + ydotoold | uinput kernel module required |
+| Input injection | python-evdev (UInput) | uinput kernel module + /dev/uinput access required |
 | Clipboard | wl-clipboard | Wayland-native |
 | OCR | tesseract + pytesseract | eng data required |
 | Browser | Playwright (Chromium) | --ozone-platform=wayland |
@@ -138,5 +139,5 @@ None — v1.0.0 complete.
 | CLI output | rich | Terminal formatting |
 
 ---
-*PROJECT.md — Evolved through all 4 phases*
-*Last updated: 2026-04-03 after Phase 5 (Hyprland Integration) completion — milestone v1.0 MVP complete*
+*PROJECT.md — Evolved through all 6 phases*
+*Last updated: 2026-04-04 after Phase 6 (Virtual Input Layer) completion — milestone v1.0 MVP complete*
