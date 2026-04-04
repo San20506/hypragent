@@ -8,7 +8,7 @@ HyprAgent builds from zero to a fully functional Wayland desktop automation agen
 
 **v1.0 MVP** (v1.0.0)
 Status: ✅ Complete (2026-04-03)
-Phases: 4 of 4 complete
+Phases: 5 of 5 complete
 
 ## Phases
 
@@ -18,6 +18,7 @@ Phases: 4 of 4 complete
 | 2 | Construct Core | 5 | ✅ Complete | 2026-04-02 |
 | 3 | Construct Extended | 3 | ✅ Complete | 2026-04-02 |
 | 4 | Test & Release | 2 | ✅ Complete | 2026-04-03 |
+| 5 | Hyprland Integration | 1 | ✅ Complete | 2026-04-03 |
 
 ## Phase Details
 
@@ -100,5 +101,32 @@ Phases: 4 of 4 complete
 - [ ] 04-02: M12 + M13 — Integration + release
 
 ---
+
+### Phase 5: Hyprland Integration
+
+**Goal:** M2.5 complete — native compositor awareness via hyprctl; 5 new MCP tools giving Claude Code a full mental map of the desktop before acting.
+**Depends on:** Phase 2 M2 (input injection working); no new system deps — hyprctl is part of Hyprland
+**Research:** None — hyprctl JSON interface confirmed from Hyprland wiki
+
+**Scope:**
+- `tools/hyprland.py` — hyprctl-backed compositor query and control tools
+- M2.5-a: `hyprland_workspace_list` — all workspaces with id, name, window count, monitor, active flag
+- M2.5-b: `hyprland_workspace_switch` — switch workspace or move active window (dispatch workspace / movetoworkspace / movetoworkspacesilent)
+- M2.5-c: `hyprland_clients` — all open windows with class, title, pid, workspace, position, size, floating, fullscreen
+- M2.5-d: `hyprland_active_window` — currently focused window (class, title, workspace) — pre-action sanity check
+- M2.5-e: `hyprland_focus_window` — focus window by class or address without switching workspace (dispatch focuswindow)
+- Deferred to v1.1: `hyprland_event_subscribe` — socket2 live event stream (async, socat-based)
+- Wire all 5 tools in `mcp_server.py` (brings tool count to 25)
+- Add schemas to `AGENT_TOOLS` in `agent/loop.py`
+
+**Interface:**
+- All queries: `hyprctl -j <command>` → parse JSON → return structured dict
+- All dispatches: `hyprctl dispatch <action> <args>` → check returncode
+- Env: `HYPRLAND_INSTANCE_SIGNATURE` (set automatically by Hyprland, no daemon required)
+
+**Plans:**
+- [x] 05-01: M2.5 — Hyprland compositor tools
+
+---
 *Roadmap created: 2026-04-02*
-*Last updated: 2026-04-02*
+*Last updated: 2026-04-03 — Phase 5 complete, v1.0 MVP milestone complete*

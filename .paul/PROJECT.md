@@ -14,7 +14,7 @@ Any AI client can control a Hyprland/Wayland desktop natively using MCP tools, w
 |-----------|-------|
 | Type | Application |
 | Version | 1.0.0 |
-| Status | Released — v1.0.0 |
+| Status | Released — v1.0.0 + Phase 5 (25 tools) |
 | Last Updated | 2026-04-03 |
 
 ## Requirements
@@ -52,6 +52,7 @@ Any AI client can control a Hyprland/Wayland desktop natively using MCP tools, w
 - ✓ Gemini + Ollama backend adapters + load_backend factory — Phase 4 M11
 - ✓ Integration test suite (29 tests, 26 non-wayland pass) — Phase 4 M12
 - ✓ v1.0.0: install.sh, README, config.yaml.example, git tag — Phase 4 M13
+- ✓ Hyprland compositor awareness: workspace_list, workspace_switch, clients, active_window, focus_window — Phase 5 M2.5
 
 ### Active (In Progress)
 None — v1.0.0 complete.
@@ -59,6 +60,7 @@ None — v1.0.0 complete.
 ### Planned (Post-v1.0)
 - Migrate `google-generativeai` → `google-genai` SDK (FutureWarning fix)
 - Audit log rotation / size limit
+- `hyprland_event_subscribe` — socket2 live event stream (async, socat-based) — Phase 5 deferred
 - Multi-monitor support
 - Voice command input
 - Task queue / batch mode
@@ -117,6 +119,7 @@ None — v1.0.0 complete.
 | Backend swap works | claude/gemini/ollama | All 3 load | ✅ |
 | Install script success | Clean CachyOS install | install-deps.sh present | ✅ |
 | Agent loop task | perceive→reason→act | Implemented + tested | ✅ |
+| Compositor awareness | workspace/window query | 5 hyprland tools (25 MCP total) | ✅ |
 
 ## Tech Stack / Tools
 
@@ -136,4 +139,4 @@ None — v1.0.0 complete.
 
 ---
 *PROJECT.md — Evolved through all 4 phases*
-*Last updated: 2026-04-03 after Phase 4 (Test & Release) completion*
+*Last updated: 2026-04-03 after Phase 5 (Hyprland Integration) completion — milestone v1.0 MVP complete*

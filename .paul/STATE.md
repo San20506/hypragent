@@ -10,28 +10,29 @@ See: .paul/PROJECT.md (updated 2026-04-02)
 ## Current Position
 
 Milestone: v1.0 MVP (v1.0.0)
-Phase: 4 of 4 (Test & Release) — ✅ COMPLETE
-Plan: 04-02 unified
-Status: COMPLETE — v1.0.0 tagged at b2ef615
-Last activity: 2026-04-03 — M12 integration tests + M13 release (v1.0.0)
+Phase: 5 of 5 (Hyprland Integration) — ✅ COMPLETE
+Plan: 05-01 unified
+Status: COMPLETE — milestone v1.0 MVP done
+Last activity: 2026-04-03 — Phase 5 unified, 31/31 tests pass, 25 MCP tools
 
 Progress:
 - Milestone: [██████████] 100% ✅
-- Phase 4: [██████████] 100% ✅
+- Phase 5: [██████████] 100% ✅
 
-MCP handlers: 20/20 wired ✓
-Agent loop: complete ✓
+MCP handlers: 25/25 wired ✓
+Agent loop: complete ✓ (18 tools)
 Multi-backend: complete ✓ (Claude + Gemini + Ollama)
 Safety controls: complete ✓
-Integration tests: 26/26 pass ✓
+Integration tests: 31/31 pass ✓
 Release: v1.0.0 tagged ✓
+Hyprland compositor tools: complete ✓ (M2.5)
 
 ## Loop Position
 
 Current loop state:
 ```
 PLAN ──▶ APPLY ──▶ UNIFY
-  ✓        ✓        ✓     [04-02 complete — project done]
+  ✓        ✓        ✓     [05-01 complete — milestone done]
 ```
 
 ## Accumulated Context
@@ -46,6 +47,7 @@ PLAN ──▶ APPLY ──▶ UNIFY
 | Strict M0→M13 build order | Planning | No milestone starts until all deps pass acceptance |
 | MCP server stub returns TextContent | Phase 1 | Server stays alive before milestones fill in implementations |
 | TODO MX: tags in all stubs | Phase 1 | Grep-verifiable milestone scope during construction |
+| Added Phase 5: Hyprland Integration | Phase 4 complete | Extends milestone — 5 compositor tools via hyprctl (M2.5) |
 
 ### Deferred Issues
 
@@ -62,9 +64,9 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: Plan 04-02 unified — all phases complete, v1.0.0 released
-Next action: None — project complete. Future work: post-v1.0 improvements (google-genai migration, audit log rotation)
-Resume file: .paul/phases/04-test-release/04-02-SUMMARY.md
+Stopped at: Phase 5 added — ready to plan 05-01 (Hyprland Integration)
+Next action: None — v1.0 MVP complete (5 phases, 25 MCP tools). Future: /paul:discuss-milestone for v1.1
+Resume file: .paul/phases/05-hyprland-integration/05-01-SUMMARY.md
 
 ---
 *STATE.md — Updated after every significant action*
