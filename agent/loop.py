@@ -15,6 +15,13 @@ from tools.browser import (
     browser_open, browser_navigate, browser_click,
     browser_type, browser_scroll, browser_get_text,
 )
+from tools.hyprland import (
+    workspace_list as _hy_workspace_list,
+    workspace_switch as _hy_workspace_switch,
+    clients as _hy_clients,
+    active_window as _hy_active_window,
+    focus_window as _hy_focus_window,
+)
 from agent.backends.base import AgentResponse, BackendAdapter
 
 
@@ -80,6 +87,24 @@ AGENT_TOOLS = [
     {"name": "browser_get_text", "description": "Get visible text from a browser element",
      "inputSchema": {"type": "object", "properties": {
          "selector": {"type": "string"}}, "required": ["selector"]}},
+    # ── Hyprland compositor tools (M2.5) ──────────────────────────────────────
+    {"name": "hyprland_workspace_list",
+     "description": "List all Hyprland workspaces — id, name, window count, monitor, active flag",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "hyprland_workspace_switch",
+     "description": "Switch to workspace by id, name, +1, -1, or 'previous'",
+     "inputSchema": {"type": "object", "properties": {
+         "target": {"type": "string"}}, "required": ["target"]}},
+    {"name": "hyprland_clients",
+     "description": "List all open windows — class, title, pid, workspace, position, size",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "hyprland_active_window",
+     "description": "Get the focused window — class, title, workspace (pre-action sanity check)",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "hyprland_focus_window",
+     "description": "Focus window by class:name or address:0x...",
+     "inputSchema": {"type": "object", "properties": {
+         "target": {"type": "string"}}, "required": ["target"]}},
 ]
 
 
@@ -163,6 +188,20 @@ def _dispatch_tool(name: str, arguments: dict, config: dict | None = None) -> st
                 return "OK"
             case "browser_get_text":
                 return browser_get_text(arguments["selector"])
+            # ── Hyprland compositor tools (M2.5) ──────────────────────────
+            case "hyprland_workspace_list":
+                return json.dumps(_hy_workspace_list(), indent=2)
+            case "hyprland_workspace_switch":
+                _hy_workspace_switch(arguments["target"])
+                return "OK"
+            case "hyprland_clients":
+                return json.dumps(_hy_clients(), indent=2)
+            case "hyprland_active_window":
+                data = _hy_active_window()
+                return json.dumps(data, indent=2) if data else "null"
+            case "hyprland_focus_window":
+                _hy_focus_window(arguments["target"])
+                return "OK"
             case _:
                 return f"Unknown tool: {name}"
     except ValueError as e:

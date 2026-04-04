@@ -44,16 +44,19 @@ def test_all_backend_modules_import():
 # ── MCP Server ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_mcp_server_lists_20_tools():
+async def test_mcp_server_lists_25_tools():
     import mcp_server
     tools = await mcp_server.list_tools()
-    assert len(tools) == 20
+    assert len(tools) == 25
     names = {t.name for t in tools}
     assert "take_screenshot" in names
     assert "terminal_run" in names
     assert "browser_open" in names
     assert "file_write" in names
     assert "read_screen_text" in names
+    for hy in ["hyprland_workspace_list", "hyprland_workspace_switch",
+               "hyprland_clients", "hyprland_active_window", "hyprland_focus_window"]:
+        assert hy in names
 
 
 # ── File Tools ────────────────────────────────────────────────────────────────
@@ -316,3 +319,101 @@ def test_ocr_fullscreen_returns_text():
     text = extract_text_fullscreen()
     assert isinstance(text, str)
     assert len(text) > 0
+
+
+# ── Hyprland tools — non-wayland (no live Hyprland needed) ───────────────────
+
+def test_hyprland_tools_import():
+    from tools.hyprland import (
+        workspace_list, workspace_switch, clients,
+        active_window, focus_window,
+    )
+    assert workspace_list
+    assert workspace_switch
+    assert clients
+    assert active_window
+    assert focus_window
+
+
+def test_hyprland_no_instance_raises():
+    """Without HYPRLAND_INSTANCE_SIGNATURE, all tools raise RuntimeError."""
+    import os
+    from unittest.mock import patch
+    from tools.hyprland import workspace_list
+    env = {k: v for k, v in os.environ.items()
+           if k != "HYPRLAND_INSTANCE_SIGNATURE"}
+    with patch.dict(os.environ, env, clear=True):
+        with pytest.raises(RuntimeError, match="[Hh]yprland"):
+            workspace_list()
+
+
+def test_hyprland_dispatch_no_instance_returns_error():
+    """_dispatch_tool returns error string when Hyprland not running."""
+    import os
+    from unittest.mock import patch
+    env = {k: v for k, v in os.environ.items()
+           if k != "HYPRLAND_INSTANCE_SIGNATURE"}
+    with patch.dict(os.environ, env, clear=True):
+        result = _dispatch_tool("hyprland_workspace_list", {})
+        assert "Error" in result or "Hyprland" in result
+
+
+def test_hyprland_agent_tools_present():
+    """All 5 hyprland tools are in AGENT_TOOLS."""
+    names = {t["name"] for t in AGENT_TOOLS}
+    for tool in ["hyprland_workspace_list", "hyprland_workspace_switch",
+                 "hyprland_clients", "hyprland_active_window", "hyprland_focus_window"]:
+        assert tool in names, f"Missing from AGENT_TOOLS: {tool}"
+
+
+def test_hyprland_agent_tools_schema_valid():
+    """All hyprland AGENT_TOOLS entries have required schema fields."""
+    hy_tools = [t for t in AGENT_TOOLS if t["name"].startswith("hyprland")]
+    assert len(hy_tools) == 5
+    for tool in hy_tools:
+        assert "name" in tool
+        assert "description" in tool
+        assert "inputSchema" in tool
+
+
+# ── Hyprland tools — wayland-live (requires running Hyprland) ────────────────
+
+@pytest.mark.wayland
+def test_hyprland_workspace_list_live():
+    from tools.hyprland import workspace_list
+    workspaces = workspace_list()
+    assert isinstance(workspaces, list)
+    assert len(workspaces) > 0
+    ws = workspaces[0]
+    assert "id" in ws
+    assert "name" in ws
+    assert "windows" in ws
+    assert "active" in ws
+    assert isinstance(ws["active"], bool)
+    # Exactly one workspace should be active
+    assert sum(1 for w in workspaces if w["active"]) == 1
+
+
+@pytest.mark.wayland
+def test_hyprland_clients_live():
+    from tools.hyprland import clients
+    result = clients()
+    assert isinstance(result, list)
+    for c in result:
+        assert "class_" in c
+        assert "title" in c
+        assert "workspace_id" in c
+        assert "pid" in c
+        assert isinstance(c["floating"], bool)
+
+
+@pytest.mark.wayland
+def test_hyprland_active_window_live():
+    from tools.hyprland import active_window
+    result = active_window()
+    # May be None (empty desktop) or a dict
+    assert result is None or isinstance(result, dict)
+    if result is not None:
+        assert "class_" in result
+        assert "title" in result
+        assert "workspace_id" in result

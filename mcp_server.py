@@ -24,6 +24,13 @@ from tools.browser import (
     browser_open, browser_navigate, browser_click,
     browser_type, browser_scroll, browser_get_text,
 )
+from tools.hyprland import (
+    workspace_list as _hy_workspace_list,
+    workspace_switch as _hy_workspace_switch,
+    clients as _hy_clients,
+    active_window as _hy_active_window,
+    focus_window as _hy_focus_window,
+)
 
 
 server = Server("hypr-agent")
@@ -135,6 +142,28 @@ async def list_tools() -> list[Tool]:
                  "cwd": {"type": "string"},
                  "timeout": {"type": "integer", "default": 30}
              }, "required": ["command"]}),
+        # ── Hyprland compositor tools (M2.5) ────────────────────────────────
+        Tool(name="hyprland_workspace_list",
+             description="List all Hyprland workspaces with id, name, window count, monitor, and active flag",
+             inputSchema={"type": "object", "properties": {}}),
+        Tool(name="hyprland_workspace_switch",
+             description="Switch to a workspace by id, name, +1, -1, or 'previous'",
+             inputSchema={"type": "object", "properties": {
+                 "target": {"type": "string",
+                            "description": "Workspace id, name, +1, -1, or 'previous'"}
+             }, "required": ["target"]}),
+        Tool(name="hyprland_clients",
+             description="List all open windows with class, title, pid, workspace, position, and size",
+             inputSchema={"type": "object", "properties": {}}),
+        Tool(name="hyprland_active_window",
+             description="Get the currently focused window (class, title, workspace)",
+             inputSchema={"type": "object", "properties": {}}),
+        Tool(name="hyprland_focus_window",
+             description="Focus a window by class (class:firefox) or address (address:0x...)",
+             inputSchema={"type": "object", "properties": {
+                 "target": {"type": "string",
+                            "description": "Window target: 'class:name' or 'address:0x...'"}
+             }, "required": ["target"]}),
     ]
 
 
@@ -291,12 +320,48 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return [TextContent(type="text", text=f"Blocked: {e}")]
             except Exception as e:
                 return [TextContent(type="text", text=f"Error: {e}")]
+        # ── Hyprland compositor tools (M2.5) ────────────────────────────────
+        case "hyprland_workspace_list":
+            try:
+                data = _hy_workspace_list()
+                return [TextContent(type="text", text=json.dumps(data, indent=2))]
+            except RuntimeError as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
+        case "hyprland_workspace_switch":
+            try:
+                _hy_workspace_switch(arguments["target"])
+                return [TextContent(type="text", text="OK")]
+            except RuntimeError as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
+        case "hyprland_clients":
+            try:
+                data = _hy_clients()
+                return [TextContent(type="text", text=json.dumps(data, indent=2))]
+            except RuntimeError as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
+        case "hyprland_active_window":
+            try:
+                data = _hy_active_window()
+                return [TextContent(type="text", text=json.dumps(data, indent=2) if data else "null")]
+            except RuntimeError as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
+        case "hyprland_focus_window":
+            try:
+                _hy_focus_window(arguments["target"])
+                return [TextContent(type="text", text="OK")]
+            except RuntimeError as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case _:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
 
+async def _run() -> None:
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(read_stream, write_stream, server.create_initialization_options())
+
+
 def main() -> None:
-    asyncio.run(stdio_server(server))
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":
