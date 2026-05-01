@@ -34,7 +34,7 @@ test-results/
 .vscode/
 *.swp
 *.swo
-
+*.
 # OS
 .DS_Store
 Thumbs.db
@@ -44,3 +44,13 @@ Thumbs.db
 
 # uv lock (committed intentionally — remove this line to track it)
 # uv.lock
+
+# Documnation build artifacts
+*docs/
+PLAN.md
+PRD.md
+SECURITY.md
+CLAUDE(3).md
+
+# Test
+ *tests/ 

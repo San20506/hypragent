@@ -1,0 +1,30 @@
+{
+  "nodes": [
+    {"id": "project", "type": "text", "text": "# HyprAgent\nNative MCP Desktop Control\nHyprland / Wayland", "x": -150, "y": -80, "width": 300, "height": 80, "color": "1"},
+    {"id": "mcp_server", "type": "text", "text": "## MCP Server\nExposes desktop tools\nvia MCP protocol", "x": -400, "y": 100, "width": 200, "height": 70},
+    {"id": "screenshot", "type": "text", "text": "## Screenshot / OCR\ngrim + slurp\nTesseract", "x": -150, "y": 100, "width": 180, "height": 70},
+    {"id": "input", "type": "text", "text": "## Input Automation\nydotool\nuinput kernel module", "x": 80, "y": 100, "width": 180, "height": 70},
+    {"id": "clipboard", "type": "text", "text": "## Clipboard\nwl-clipboard\nWayland native", "x": 300, "y": 100, "width": 180, "height": 70},
+    {"id": "clients", "type": "text", "text": "## MCP Clients\nClaude Code\nOpenCode\nAny MCP client", "x": -400, "y": -200, "width": 200, "height": 70},
+    {"id": "adr_mcp", "type": "file", "file": "ADR/MCP.md", "x": -450, "y": 250, "width": 160, "height": 50},
+    {"id": "adr_grim", "type": "file", "file": "ADR/grim.md", "x": -270, "y": 250, "width": 160, "height": 50},
+    {"id": "adr_tesseract", "type": "file", "file": "ADR/Tesseract.md", "x": -90, "y": 250, "width": 160, "height": 50},
+    {"id": "adr_ydotool", "type": "file", "file": "ADR/ydotool.md", "x": 90, "y": 250, "width": 160, "height": 50},
+    {"id": "adr_wlclip", "type": "file", "file": "ADR/wl-clipboard.md", "x": 270, "y": 250, "width": 160, "height": 50}
+  ],
+  "edges": [
+    {"id": "e1", "fromNode": "clients", "toNode": "mcp_server", "label": "MCP protocol"},
+    {"id": "e2", "fromNode": "project", "toNode": "mcp_server", "label": "core"},
+    {"id": "e3", "fromNode": "project", "toNode": "screenshot", "label": "tool"},
+    {"id": "e4", "fromNode": "project", "toNode": "input", "label": "tool"},
+    {"id": "e5", "fromNode": "project", "toNode": "clipboard", "label": "tool"},
+    {"id": "e6", "fromNode": "mcp_server", "toNode": "screenshot", "label": "invokes"},
+    {"id": "e7", "fromNode": "mcp_server", "toNode": "input", "label": "invokes"},
+    {"id": "e8", "fromNode": "mcp_server", "toNode": "clipboard", "label": "invokes"},
+    {"id": "e9", "fromNode": "mcp_server", "toNode": "adr_mcp", "label": "uses"},
+    {"id": "e10", "fromNode": "screenshot", "toNode": "adr_grim", "label": "uses"},
+    {"id": "e11", "fromNode": "screenshot", "toNode": "adr_tesseract", "label": "uses"},
+    {"id": "e12", "fromNode": "input", "toNode": "adr_ydotool", "label": "uses"},
+    {"id": "e13", "fromNode": "clipboard", "toNode": "adr_wlclip", "label": "uses"}
+  ]
+}
