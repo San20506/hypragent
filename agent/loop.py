@@ -323,12 +323,30 @@ class AgentLoop:
         return results
 
     def _check_termination(self, response: AgentResponse) -> bool:
-        """Return True if loop should stop."""
+        """Return True if loop should stop.
+
+        Terminates when:
+          - Kill switch triggered (SIGINT)
+          - Max steps reached
+          - Model has no more tool calls (regardless of stop_reason)
+          - Model hit token limit (max_tokens/length) — avoid infinite retry loop
+
+        The old behaviour only checked stop_reason == "end_turn", which meant
+        a model hitting max_tokens with no tool calls would loop forever
+        re-sending the same screenshot + OCR text until max_steps exhausted.
+        """
         if self._killed:
             return True
         max_steps = self.config.get("loop", {}).get("max_steps", 20)
         if self._step >= max_steps:
             return True
-        if response.stop_reason == "end_turn" and not response.tool_calls:
+        # If the model made no tool calls, there's nothing to execute.
+        # Stop regardless of whether it said "end_turn", "stop", "max_tokens",
+        # or anything else — the cycle is complete.
+        if not response.tool_calls:
+            return True
+        # Model requested tools but hit a token limit mid-reasoning.
+        # Continuing would feed the same context and hit the same limit.
+        if response.stop_reason in ("max_tokens", "length"):
             return True
         return False
