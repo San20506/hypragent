@@ -23,6 +23,7 @@ from tools.hyprland import (
     focus_window as _hy_focus_window,
 )
 from agent.backends.base import AgentResponse, BackendAdapter
+from agent.action_executor import execute_plan
 
 
 _SYSTEM_PROMPT = (
@@ -30,7 +31,12 @@ _SYSTEM_PROMPT = (
     "You control the desktop by calling tools. You receive screenshots and OCR text "
     "to perceive the current screen state. "
     "Complete the given task by using tools, then respond with 'TASK COMPLETE' "
-    "when finished and make no more tool calls."
+    "when finished and make no more tool calls. "
+    "For multi-step sequences, prefer execute_plan with a dependency graph. "
+    "Independent actions (read queries, app launches) should have empty depends_on "
+    "to run in parallel. Input actions (mouse, keyboard) and perception "
+    "(screenshot, OCR) should depend on the actions that set up their context. "
+    "For single-step actions, use individual tools as before."
 )
 
 _AUDIT_LOG = os.path.expanduser("~/.config/hypr-agent/audit.log")
@@ -105,6 +111,22 @@ AGENT_TOOLS = [
      "description": "Focus window by class:name or address:0x...",
      "inputSchema": {"type": "object", "properties": {
          "target": {"type": "string"}}, "required": ["target"]}},
+    # ── Parallel execution tool ──────────────────────────────────────────────
+    {"name": "execute_plan",
+     "description": "Execute a batch of actions with dependency-aware parallelism. "
+                    "Independent actions run in parallel. Actions with dependencies wait "
+                    "for their predecessors. Returns results from all actions plus a "
+                    "verification screenshot and OCR snapshot. "
+                    "Use this for multi-step sequences instead of individual tool calls.",
+     "inputSchema": {"type": "object", "properties": {
+         "actions": {"type": "array", "items": {
+             "type": "object", "properties": {
+                 "id": {"type": "string"},
+                 "tool": {"type": "string"},
+                 "args": {"type": "object"},
+                 "depends_on": {"type": "array", "items": {"type": "string"}},
+             }, "required": ["id", "tool", "args"]}},
+     }, "required": ["actions"]}},
 ]
 
 
@@ -202,6 +224,14 @@ def _dispatch_tool(name: str, arguments: dict, config: dict | None = None) -> st
             case "hyprland_focus_window":
                 _hy_focus_window(arguments["target"])
                 return "OK"
+            # ── Parallel execution ───────────────────────────────────────
+            case "execute_plan":
+                actions = arguments["actions"]
+                # Create a dispatch wrapper that captures the current config
+                def _plan_dispatch(tool: str, args: dict) -> str:
+                    return _dispatch_tool(tool, args, config)
+                result = execute_plan(actions, _plan_dispatch, verify=True)
+                return json.dumps(result, indent=2)
             case _:
                 return f"Unknown tool: {name}"
     except ValueError as e:

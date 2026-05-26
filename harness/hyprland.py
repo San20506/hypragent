@@ -289,9 +289,17 @@ class HyprlandHarness:
             if result.returncode == 0 and result.stdout.strip():
                 monitors = json.loads(result.stdout)
                 if monitors:
-                    m = monitors[0]
-                    self._screen_w = m.get("width", self._screen_w)
-                    self._screen_h = m.get("height", self._screen_h)
+                    # Find the focused monitor (the one Hyprland is currently using)
+                    focused = None
+                    for m in monitors:
+                        if m.get("focused", False):
+                            focused = m
+                            break
+                    if focused is None:
+                        focused = monitors[0]  # fallback to first if none focused
+                    scale = focused.get("scale", 1.0) or 1.0
+                    self._screen_w = int(focused.get("width", self._screen_w) / scale)
+                    self._screen_h = int(focused.get("height", self._screen_h) / scale)
         except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
             pass
 

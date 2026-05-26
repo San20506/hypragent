@@ -39,6 +39,7 @@ from tools.hyprland import (
     active_window as _hy_active_window,
     focus_window as _hy_focus_window,
 )
+from agent.action_executor import execute_plan
 from harness import detect_harness
 
 
@@ -312,7 +313,131 @@ async def list_tools() -> list[Tool]:
                  "target": {"type": "string",
                             "description": "Window target: 'class:name' or 'address:0x...'"}
              }, "required": ["target"]}),
+        Tool(name="execute_plan",
+             description="Execute a batch of actions with dependency-aware parallelism. "
+                         "Provide a list of actions, each with id, tool, args, and optional "
+                         "depends_on (list of prerequisite action ids). Independent actions "
+                         "(read-only queries, compositor commands) run in parallel. Input "
+                         "actions (mouse, keyboard) run sequentially. Perception actions "
+                         "(screenshot, OCR) run last. Returns results, failures, and a "
+                         "verification screenshot with OCR snapshot to confirm effects.",
+             inputSchema={"type": "object", "properties": {
+                 "actions": {"type": "array", "items": {
+                     "type": "object", "properties": {
+                         "id": {"type": "string"},
+                         "tool": {"type": "string"},
+                         "args": {"type": "object"},
+                         "depends_on": {"type": "array", "items": {"type": "string"}},
+                     }, "required": ["id", "tool", "args"]}},
+             }, "required": ["actions"]}),
     ]
+
+
+# -- Sync dispatch helper for execute_plan --
+
+def _mcp_dispatch(tool_name: str, args: dict) -> str:
+    """Synchronous dispatch for MCP tools - used by execute_plan internally."""
+    match tool_name:
+        case "take_screenshot":
+            region = args.get("region")
+            if region:
+                return capture_region(
+                    region["x"], region["y"],
+                    region["width"], region["height"],
+                )
+            return capture_fullscreen()
+        case "mouse_move":
+            move_mouse(args["x"], args["y"])
+            return "OK"
+        case "mouse_click":
+            click(args["x"], args["y"], args.get("button", "left"))
+            return "OK"
+        case "mouse_drag":
+            drag(args["from_x"], args["from_y"],
+                 args["to_x"], args["to_y"])
+            return "OK"
+        case "mouse_scroll":
+            scroll(args["x"], args["y"],
+                   args["direction"], args.get("amount", 3))
+            return "OK"
+        case "keyboard_type":
+            type_text(args["text"])
+            return "OK"
+        case "keyboard_press":
+            press_key(args["key"])
+            return "OK"
+        case "read_screen_text":
+            region = args.get("region")
+            if region:
+                return extract_text_from_region(
+                    region["x"], region["y"],
+                    region["width"], region["height"],
+                )
+            return extract_text_fullscreen()
+        case "browser_open":
+            browser_open(args["url"])
+            return "OK"
+        case "browser_navigate":
+            browser_navigate(args["url"])
+            return "OK"
+        case "browser_click":
+            browser_click(args["selector"])
+            return "OK"
+        case "browser_type":
+            browser_type(args["selector"], args["text"])
+            return "OK"
+        case "browser_scroll":
+            browser_scroll(args["direction"], args.get("amount", 300))
+            return "OK"
+        case "browser_get_text":
+            return browser_get_text(args["selector"])
+        case "browser_close":
+            browser_close()
+            return "OK"
+        case "file_list":
+            return json.dumps(file_list(args["path"]))
+        case "file_read":
+            return file_read(args["path"])
+        case "file_write":
+            file_write(args["path"], args["content"], args.get("confirm", True))
+            return "OK"
+        case "file_move":
+            file_move(args["src"], args["dst"], args.get("confirm", True))
+            return "OK"
+        case "file_delete":
+            file_delete(args["path"], args.get("confirm", True))
+            return "OK"
+        case "terminal_run":
+            result = _terminal_run(
+                args["command"],
+                cwd=args.get("cwd"),
+                timeout=args.get("timeout", 30),
+            )
+            output = result.stdout
+            if result.stderr:
+                output += "\n[stderr]\n" + result.stderr
+            if result.timed_out:
+                output = "[timed out]"
+            elif result.returncode != 0:
+                output += "\n[exit " + str(result.returncode) + "]"
+            return output
+        case "hyprland_workspace_list":
+            return json.dumps(_hy_workspace_list(), indent=2)
+        case "hyprland_workspace_switch":
+            _hy_workspace_switch(args["target"])
+            return "OK"
+        case "hyprland_clients":
+            return json.dumps(_hy_clients(), indent=2)
+        case "hyprland_active_window":
+            data = _hy_active_window()
+            return json.dumps(data, indent=2) if data else "null"
+        case "hyprland_focus_window":
+            _hy_focus_window(args["target"])
+            return "OK"
+        case _:
+            return "Unknown tool: " + tool_name
+
+
 
 
 # ── Tool dispatch ───────────────────────────────────────────────────────────
@@ -506,6 +631,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return [TextContent(type="text", text="OK")]
             except RuntimeError as e:
                 return [TextContent(type="text", text=f"Error: {e}")]
+        case "execute_plan":
+            try:
+                actions = arguments["actions"]
+                plan_result = execute_plan(actions, _mcp_dispatch, verify=True)
+                return [TextContent(type="text", text=json.dumps(plan_result, indent=2))]
+            except Exception as e:
+                return [TextContent(type="text", text="Error: " + str(e))]
         case _:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
