@@ -54,3 +54,11 @@ CLAUDE(3).md
 
 # Test
  *tests/ 
+
+# Linter
+.ruff_cache/
+
+# Project tool dirs
+.obsidian-vault/
+.paul/
+.sisyphus/
