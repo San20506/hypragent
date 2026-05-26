@@ -1,10 +1,10 @@
 """HyprAgent MCP Server — exposes all desktop control tools over stdio.
 
-Connects to: Claude Code, OpenCode, or any MCP-compatible client.
+Connects to: Claude Code, OpenCode, Hermes Agent, or any MCP-compatible client.
 Transport: stdio (default). Run with: uv run hypragent
 
-All tool handlers call stub implementations until milestones M1-M9 are complete.
-Stubs return an informative message rather than raising, so the server stays alive.
+22 tools: screenshots, mouse/keyboard control, OCR, browser automation,
+file management, terminal execution, and Hyprland compositor integration.
 """
 
 import asyncio

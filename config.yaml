@@ -1,26 +1,29 @@
 # HyprAgent Configuration
-# Copy to config.yaml and fill in your values.
-# Credentials must be set via environment variables — do not hardcode API keys here.
 
 backend:
-  active: claude   # claude | gemini | ollama
+  active: openai_compatible   # claude | gemini | ollama | openai_compatible
 
   claude:
     model: claude-sonnet-4-6
-    api_key_env: ANTHROPIC_API_KEY   # export ANTHROPIC_API_KEY=sk-ant-...
+    api_key_env: ANTHROPIC_API_KEY
 
   gemini:
     model: gemini-2.5-flash
-    api_key_env: GEMINI_API_KEY      # export GEMINI_API_KEY=...
+    api_key_env: GEMINI_API_KEY
 
   ollama:
     endpoint: http://localhost:11434
-    model: llava                      # must support vision; e.g. llava, minicpm-v
+    model: llava
+
+  openai_compatible:
+    model: kimi-k2.5
+    base_url: https://opencode.ai/zen/go/v1
+    api_key_env: OPENCODE_GO_API_KEY
 
 loop:
-  max_steps: 20                       # abort after this many perceive→act cycles
-  screenshot_on_every_step: true      # capture screen before each reasoning step
-  confirm_destructive_actions: true   # prompt before file write/move/delete
+  max_steps: 20
+  screenshot_on_every_step: true
+  confirm_destructive_actions: true
   kill_switch_key: "ctrl+shift+escape"
 
 safety:
@@ -28,6 +31,6 @@ safety:
     - "rm -rf /"
     - "dd if="
     - "mkfs"
-    - ":(){:|:&};:"                   # fork bomb
-  screenshot_format: png              # png recommended for OCR accuracy
-  ocr_language: eng                   # tesseract language code
+    - ":(){:|:&};:"
+  screenshot_format: png
+  ocr_language: eng

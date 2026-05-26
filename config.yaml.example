@@ -3,7 +3,7 @@
 # Credentials must be set via environment variables — do not hardcode API keys here.
 
 backend:
-  active: claude   # claude | gemini | ollama
+  active: claude   # claude | gemini | ollama | openai_compatible
 
   claude:
     model: claude-sonnet-4-6
@@ -16,6 +16,11 @@ backend:
   ollama:
     endpoint: http://localhost:11434
     model: llava                      # must support vision; e.g. llava, minicpm-v
+
+  openai_compatible:
+    model: kimi-k2.5                  # any vision-capable model supported by the endpoint
+    base_url: https://opencode.ai/zen/go/v1   # OpenCode Go, OpenRouter, OpenAI, vLLM, etc.
+    api_key_env: OPENCODE_GO_API_KEY  # export OPENCODE_GO_API_KEY=...
 
 loop:
   max_steps: 20                       # abort after this many perceive→act cycles
