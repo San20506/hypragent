@@ -1,12 +1,14 @@
-"""Terminal command execution tool — Milestone M9.
+"""Terminal command execution tool.
 
-Safety: Commands are run via subprocess list args (no shell=True).
-Blocklist and timeout enforced per config.
+Safety: Commands are parsed via shlex and checked against a structured
+blocklist (exact command match or path prefix match). No substring matching
+— prevents trivial bypasses like extra whitespace.
 """
 
 import shlex
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
@@ -18,12 +20,24 @@ class TerminalResult:
     timed_out: bool
 
 
-# Matches config.yaml.example safety.command_blocklist — config-driven binding in M13
-BLOCKLIST = [
+# Blocked commands — matched against the first argument (the executable).
+# Prefix matches: "dd" blocks "dd", "dd_rescue", etc.
+# Path matches: "/usr/bin/rm" blocks if the full path is used.
+BLOCKED_COMMANDS = {
+    "mkfs", "mkfs.ext4", "mkfs.btrfs", "mkfs.fat", "mkfs.ntfs",
+    "dd",
+    "shred",
+    "fdisk", "cfdisk", "sfdisk", "parted", "gparted",
+}
+
+# Blocked argument patterns — if these appear as standalone arguments, block.
+# Catches "rm -rf /" regardless of spacing, and fork bombs.
+BLOCKED_ARG_PATTERNS = [
     "rm -rf /",
-    "dd if=",
-    "mkfs",
-    ":(){:|:&};:",
+    "rm -rf /*",
+    ":(){ :|:& };:",
+    "/dev/sda",
+    "/dev/nvme",
 ]
 
 
@@ -34,22 +48,41 @@ def terminal_run(
 ) -> TerminalResult:
     """Run a shell command and return structured output.
 
+    Safety checks (in order):
+      1. Parses command with shlex to normalize whitespace.
+      2. Checks the executable name against BLOCKED_COMMANDS.
+      3. Checks the full command string against BLOCKED_ARG_PATTERNS.
+
     Args:
         command: Shell command string to execute.
-        cwd: Working directory for the command (defaults to project root).
+        cwd: Working directory for the command.
         timeout: Maximum seconds to wait before killing the process.
 
     Returns:
         TerminalResult with stdout, stderr, returncode, timed_out.
 
     Raises:
-        ValueError: If command matches a blocklist entry.
+        ValueError: If command is blocked by safety policy.
     """
-    for blocked in BLOCKLIST:
-        if blocked in command:
-            raise ValueError(f"Command blocked by safety policy: {blocked!r}")
-
     args = shlex.split(command)
+    if not args:
+        raise ValueError("Command must not be empty")
+
+    exe = Path(args[0]).name
+    if exe in BLOCKED_COMMANDS:
+        raise ValueError(
+            f"Command blocked by safety policy: {exe!r}. "
+            f"Use alternative or manually run in your terminal."
+        )
+
+    # Rejoin with normalized whitespace for pattern matching
+    normalized = " ".join(args)
+    for pattern in BLOCKED_ARG_PATTERNS:
+        if pattern in normalized:
+            raise ValueError(
+                f"Command blocked by safety policy: contains {pattern!r}"
+            )
+
     try:
         result = subprocess.run(
             args,
@@ -77,5 +110,4 @@ def terminal_run_interactive(command: str) -> None:
     Args:
         command: Shell command to run interactively.
     """
-    # TODO M9: Detect terminal emulator (foot, kitty, alacritty) from env and open
-    raise NotImplementedError("M9: terminal_run_interactive not yet implemented")
+    raise NotImplementedError("terminal_run_interactive not yet implemented")

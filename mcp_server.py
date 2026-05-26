@@ -7,8 +7,16 @@ Transport: stdio (default). Run with: uv run hypragent
 file management, terminal execution, and Hyprland compositor integration.
 """
 
+import argparse
 import asyncio
 import json
+import os
+import shutil
+import subprocess
+import sys
+from types import SimpleNamespace
+
+import yaml
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -22,7 +30,7 @@ from tools.files import file_list, file_read, file_write, file_move, file_delete
 from tools.terminal import terminal_run as _terminal_run
 from tools.browser import (
     browser_open, browser_navigate, browser_click,
-    browser_type, browser_scroll, browser_get_text,
+    browser_type, browser_scroll, browser_get_text, browser_close,
 )
 from tools.hyprland import (
     workspace_list as _hy_workspace_list,
@@ -36,14 +44,152 @@ from agent.device_manager import devices
 
 server = Server("hypr-agent")
 
+# ── Config ──────────────────────────────────────────────────────────────────
 
-def _stub(milestone: str, tool_name: str) -> list[TextContent]:
-    return [TextContent(type="text", text=f"[NOT IMPLEMENTED] {tool_name} — implement in {milestone}")]
+_CONFIG_PATH = os.path.expanduser("~/.config/hypr-agent/config.yaml")
+_PROJECT_CONFIG = os.path.join(os.path.dirname(__file__), "config.yaml")
 
 
-# ---------------------------------------------------------------------------
-# Screenshot tools (M1)
-# ---------------------------------------------------------------------------
+def _dict_to_namespace(d: dict) -> SimpleNamespace:
+    """Recursively convert a dict to SimpleNamespace for dotted access."""
+    if not isinstance(d, dict):
+        return d
+    return SimpleNamespace(**{k: _dict_to_namespace(v) for k, v in d.items()})
+
+
+def _detect_hyprland_env() -> None:
+    """Auto-detect Hyprland environment variables if not already set."""
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return
+
+    hypr_dir = f"/run/user/{os.getuid()}/hypr"
+    if not os.path.isdir(hypr_dir):
+        return
+
+    try:
+        entries = os.listdir(hypr_dir)
+        if entries:
+            os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = entries[0]
+    except OSError:
+        pass
+
+
+def _detect_screen_resolution() -> tuple[int, int]:
+    """Auto-detect screen resolution from hyprctl monitors.
+
+    Returns:
+        (width, height) tuple. Falls back to 2560x1440 if detection fails.
+    """
+    try:
+        result = subprocess.run(
+            ["hyprctl", "monitors", "-j"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            monitors = json.loads(result.stdout)
+            if monitors:
+                m = monitors[0]
+                return m.get("width", 2560), m.get("height", 1440)
+    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
+        pass
+    return 2560, 1440
+
+
+def _load_config() -> SimpleNamespace:
+    """Load config from standard locations.
+
+    Checks:
+      1. ~/.config/hypr-agent/config.yaml  (user config)
+      2. ./config.yaml                       (project-local)
+
+    Returns a SimpleNamespace with dotted-attribute access.
+    Falls back to safe defaults if no config found.
+    """
+    for path in (_CONFIG_PATH, _PROJECT_CONFIG):
+        if os.path.isfile(path):
+            with open(path) as f:
+                return _dict_to_namespace(yaml.safe_load(f))
+
+    # Sensible defaults — enough for MCP tools to work without a config file
+    return _dict_to_namespace({
+        "tools": {
+            "mouse": {"screen_width": 2560, "screen_height": 1440},
+            "keyboard": {"type_delay_ms": 12, "use_clipboard_fallback": True},
+        },
+        "loop": {"max_steps": 20, "confirm_destructive_actions": True},
+        "safety": {"command_blocklist": ["rm -rf /", "dd if=", "mkfs"]},
+    })
+
+
+# ── Doctor (health check) ───────────────────────────────────────────────────
+
+def run_doctor() -> int:
+    """Check all system dependencies and report status. Returns exit code."""
+    checks = {
+        "grim": shutil.which("grim"),
+        "hyprctl": shutil.which("hyprctl"),
+        "tesseract": shutil.which("tesseract"),
+        "wl-copy": shutil.which("wl-copy"),
+        "ydotool (optional)": shutil.which("ydotool"),
+    }
+
+    all_ok = True
+    print("HyprAgent Doctor\n" + "=" * 50)
+
+    for name, path in checks.items():
+        status = f"  found ({path})" if path else "  MISSING"
+        if not path and "(optional)" not in name:
+            all_ok = False
+        print(f"  {name:.<30} {status}")
+
+    # Check uinput
+    try:
+        if os.access("/dev/uinput", os.W_OK):
+            print("  /dev/uinput ................... writable")
+        else:
+            print("  /dev/uinput ................... NOT writable (run: sudo usermod -aG input $USER)")
+            all_ok = False
+    except OSError:
+        print("  /dev/uinput ................... not found (run: sudo modprobe uinput)")
+        all_ok = False
+
+    # Check Hyprland
+    if checks["hyprctl"]:
+        try:
+            result = subprocess.run(
+                ["hyprctl", "monitors", "-j"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                monitors = json.loads(result.stdout)
+                for m in monitors:
+                    print(f"  Monitor: {m.get('name', '?')}  "
+                          f"{m.get('width', '?')}x{m.get('height', '?')}"
+                          f"@{m.get('refreshRate', '?')}Hz")
+            else:
+                print("  Hyprland ...................... not running or not reachable")
+                all_ok = False
+        except (subprocess.TimeoutExpired, json.JSONDecodeError):
+            print("  Hyprland ...................... not reachable")
+            all_ok = False
+
+    # Config
+    config_found = os.path.isfile(_CONFIG_PATH) or os.path.isfile(_PROJECT_CONFIG)
+    print(f"  config.yaml ................... {'found' if config_found else 'not found (using defaults)'}")
+
+    print()
+    if all_ok:
+        print("All checks passed.")
+        return 0
+    else:
+        print("Some checks failed. Install missing dependencies:")
+        print("  sudo pacman -S grim tesseract tesseract-data-eng wl-clipboard")
+        print("  sudo modprobe uinput && sudo usermod -aG input $USER")
+        print("  (re-login after adding yourself to the input group)")
+        return 1
+
+
+# ── Tool definitions ────────────────────────────────────────────────────────
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
@@ -115,6 +261,8 @@ async def list_tools() -> list[Tool]:
              inputSchema={"type": "object", "properties": {
                  "selector": {"type": "string"}
              }, "required": ["selector"]}),
+        Tool(name="browser_close", description="Close the browser and release Playwright resources",
+             inputSchema={"type": "object", "properties": {}}),
         Tool(name="file_list", description="List directory contents",
              inputSchema={"type": "object", "properties": {
                  "path": {"type": "string"}
@@ -143,7 +291,6 @@ async def list_tools() -> list[Tool]:
                  "cwd": {"type": "string"},
                  "timeout": {"type": "integer", "default": 30}
              }, "required": ["command"]}),
-        # ── Hyprland compositor tools (M2.5) ────────────────────────────────
         Tool(name="hyprland_workspace_list",
              description="List all Hyprland workspaces with id, name, window count, monitor, and active flag",
              inputSchema={"type": "object", "properties": {}}),
@@ -167,6 +314,8 @@ async def list_tools() -> list[Tool]:
              }, "required": ["target"]}),
     ]
 
+
+# ── Tool dispatch ───────────────────────────────────────────────────────────
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -271,6 +420,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return [TextContent(type="text", text=text)]
             except Exception as e:
                 return [TextContent(type="text", text=f"Error: {e}")]
+        case "browser_close":
+            try:
+                browser_close()
+                return [TextContent(type="text", text="OK")]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
         case "file_list":
             try:
                 entries = file_list(arguments["path"])
@@ -321,7 +476,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return [TextContent(type="text", text=f"Blocked: {e}")]
             except Exception as e:
                 return [TextContent(type="text", text=f"Error: {e}")]
-        # ── Hyprland compositor tools (M2.5) ────────────────────────────────
         case "hyprland_workspace_list":
             try:
                 data = _hy_workspace_list()
@@ -356,10 +510,25 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
 
+# ── Server entry point ──────────────────────────────────────────────────────
+
 async def _run() -> None:
-    # TODO(06-02): pass real config object once config loader is wired end-to-end
-    # For now, DeviceManager.start() will use its built-in defaults (2560×1440)
-    devices.start()
+    _detect_hyprland_env()
+
+    config = _load_config()
+    screen_w, screen_h = _detect_screen_resolution()
+
+    # Override config defaults with auto-detected resolution if not explicitly set
+    try:
+        if config.tools.mouse.screen_width == 2560 and config.tools.mouse.screen_height == 1440:
+            config.tools.mouse.screen_width = screen_w
+            config.tools.mouse.screen_height = screen_h
+    except AttributeError:
+        pass
+
+    devices.start(config)
+    print(f"[HyprAgent] Screen: {screen_w}x{screen_h}", file=sys.stderr)
+
     try:
         async with stdio_server() as (read_stream, write_stream):
             await server.run(read_stream, write_stream, server.create_initialization_options())
@@ -368,6 +537,20 @@ async def _run() -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="hypragent",
+        description="HyprAgent MCP Server — desktop control agent for Hyprland/Wayland",
+    )
+    parser.add_argument("--version", action="version", version="hypragent 1.0.0")
+    parser.add_argument(
+        "--doctor", action="store_true",
+        help="Check system dependencies and report status",
+    )
+    args = parser.parse_args()
+
+    if args.doctor:
+        sys.exit(run_doctor())
+
     asyncio.run(_run())
 
 

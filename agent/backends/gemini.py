@@ -1,10 +1,57 @@
-"""Gemini backend adapter — Milestone M11."""
+"""Gemini backend adapter."""
 
 import os
 
 import google.generativeai as genai
 
 from agent.backends.base import AgentResponse, BackendAdapter
+
+# Map JSON Schema types to Gemini proto types
+_JSONSCHEMA_TO_GEMINI = {
+    "string": genai.protos.Type.STRING,
+    "integer": genai.protos.Type.INTEGER,
+    "number": genai.protos.Type.NUMBER,
+    "boolean": genai.protos.Type.BOOLEAN,
+    "object": genai.protos.Type.OBJECT,
+    "array": genai.protos.Type.ARRAY,
+}
+
+
+def _to_gemini_schema(jsonschema: dict) -> genai.protos.Schema:
+    """Convert a JSON Schema property dict to a Gemini Schema.
+
+    Recursively handles nested objects and type arrays.
+    """
+    schema_type = genai.protos.Type.STRING  # default
+
+    raw_type = jsonschema.get("type", "string")
+    if isinstance(raw_type, list):
+        # ["string", "null"] → pick first non-null type
+        for t in raw_type:
+            if t != "null" and t in _JSONSCHEMA_TO_GEMINI:
+                schema_type = _JSONSCHEMA_TO_GEMINI[t]
+                break
+    elif raw_type in _JSONSCHEMA_TO_GEMINI:
+        schema_type = _JSONSCHEMA_TO_GEMINI[raw_type]
+
+    schema_kwargs: dict = {"type": schema_type}
+
+    # Description
+    if "description" in jsonschema:
+        schema_kwargs["description"] = jsonschema["description"]
+
+    # Enum values
+    if "enum" in jsonschema:
+        schema_kwargs["enum"] = jsonschema["enum"]
+
+    # Nested properties (for object types)
+    if jsonschema.get("properties"):
+        schema_kwargs["properties"] = {
+            k: _to_gemini_schema(v)
+            for k, v in jsonschema["properties"].items()
+        }
+
+    return genai.protos.Schema(**schema_kwargs)
 
 
 class GeminiBackend(BackendAdapter):
@@ -23,23 +70,25 @@ class GeminiBackend(BackendAdapter):
         tools: list[dict],
         images: list[str],
     ) -> AgentResponse:
-        # Convert tools to Gemini function declarations
+        # Convert tools to Gemini function declarations with proper types
         gemini_tools = None
         if tools:
-            function_declarations = [
-                genai.protos.FunctionDeclaration(
-                    name=t["name"],
-                    description=t.get("description", ""),
-                    parameters=genai.protos.Schema(
-                        type=genai.protos.Type.OBJECT,
-                        properties={
-                            k: genai.protos.Schema(type=genai.protos.Type.STRING)
-                            for k in t.get("inputSchema", {}).get("properties", {})
-                        },
-                    ),
+            function_declarations = []
+            for t in tools:
+                input_schema = t.get("inputSchema", {})
+                params = _to_gemini_schema({
+                    "type": "object",
+                    "properties": input_schema.get("properties", {}),
+                }) if input_schema.get("properties") else genai.protos.Schema(
+                    type=genai.protos.Type.OBJECT,
                 )
-                for t in tools
-            ]
+                function_declarations.append(
+                    genai.protos.FunctionDeclaration(
+                        name=t["name"],
+                        description=t.get("description", ""),
+                        parameters=params,
+                    )
+                )
             gemini_tools = [genai.protos.Tool(function_declarations=function_declarations)]
 
         # Build contents list (Gemini uses "contents" not "messages")
@@ -83,7 +132,7 @@ class GeminiBackend(BackendAdapter):
                 tool_calls.append({
                     "name": fc.name,
                     "input": dict(fc.args),
-                    "id": fc.name,  # Gemini returns no call ID; use name as fallback
+                    "id": fc.name,
                 })
 
         stop_reason = "end_turn" if not tool_calls else "tool_use"
