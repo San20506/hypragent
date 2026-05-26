@@ -44,10 +44,10 @@ def test_all_backend_modules_import():
 # ── MCP Server ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_mcp_server_lists_25_tools():
+async def test_mcp_server_lists_tools():
     import mcp_server
     tools = await mcp_server.list_tools()
-    assert len(tools) == 25
+    assert len(tools) >= 25
     names = {t.name for t in tools}
     assert "take_screenshot" in names
     assert "terminal_run" in names

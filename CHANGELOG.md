@@ -7,7 +7,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.1.0] — 2026-04-03
+## [1.0.0] — 2026-05-26
 
 ### Added
 
@@ -50,6 +50,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `config.yaml.example` — fully documented configuration template
 - `README.md` — setup, MCP integration, usage examples
 
+### Added (since v0.1.0)
+
+- `OpenAICompatibleBackend` — works with OpenCode Go, OpenRouter, vLLM, Ollama, any OpenAI API
+- `browser_close` tool (26 tools total, was 25)
+- Evdev-based input via `agent/device_manager.py` (replaces ydotool dependency)
+- Lazy imports for heavy deps (faster startup, cleaner test collection)
+
+### Fixed
+
+- Infinite agent loop on `max_tokens` / `length` stop reasons
+- Startup reliability: portability fixes, safer signal handling
+- Test collection on systems without Wayland deps
+
 ### Technical Notes
 
 - ydotool scroll implemented via direct `SOCK_DGRAM` socket injection (EV_REL/REL_WHEEL) — ydotool 1.0.4 has no scroll subcommand
@@ -59,13 +72,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Planned (v0.2.0)
+### Planned (v1.1.0)
 
-- Migrate `google-generativeai` → `google-genai` SDK
-- Audit log rotation and size limits
 - Multi-monitor support
 - Voice command input
 - Task queue / batch mode
+- Audit log rotation and size limits
 
 ---
 

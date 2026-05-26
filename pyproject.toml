@@ -30,6 +30,7 @@ hypragent = "mcp_server:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "wayland: requires a running Wayland session with grim and /dev/uinput access",
 ]
@@ -40,3 +41,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["agent", "tools"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"mcp_server.py" = "mcp_server.py"
+
