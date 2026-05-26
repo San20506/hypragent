@@ -47,6 +47,7 @@ Thumbs.db
 
 # Documnation build artifacts
 *docs/
+!/docs
 PLAN.md
 PRD.md
 SECURITY.md
