@@ -39,7 +39,7 @@ from tools.hyprland import (
     active_window as _hy_active_window,
     focus_window as _hy_focus_window,
 )
-from agent.device_manager import devices
+from harness import detect_harness
 
 
 server = Server("hypr-agent")
@@ -526,14 +526,15 @@ async def _run() -> None:
     except AttributeError:
         pass
 
-    devices.start(config)
+    _harness = detect_harness()
+    _harness.start(config)
     print(f"[HyprAgent] Screen: {screen_w}x{screen_h}", file=sys.stderr)
 
     try:
         async with stdio_server() as (read_stream, write_stream):
             await server.run(read_stream, write_stream, server.create_initialization_options())
     finally:
-        devices.stop()
+        _harness.stop()
 
 
 def main() -> None:

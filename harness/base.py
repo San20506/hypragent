@@ -1,0 +1,69 @@
+"""Protocol definitions for the harness abstraction layer.
+
+Every platform (Hyprland/Wayland, X11, macOS, Windows) implements these protocols.
+"""
+
+from typing import Protocol, runtime_checkable
+
+
+@runtime_checkable
+class ScreenshotHarness(Protocol):
+    """Screen capture capabilities."""
+
+    def capture_fullscreen(self) -> str:
+        """Capture entire screen → base64 PNG string."""
+        ...
+
+    def capture_region(self, x: int, y: int, w: int, h: int) -> str:
+        """Capture screen region → base64 PNG string."""
+        ...
+
+    def save_screenshot(self, path: str) -> None:
+        """Capture fullscreen and save to file."""
+        ...
+
+
+@runtime_checkable
+class InputHarness(Protocol):
+    """Mouse and keyboard input capabilities."""
+
+    def move_mouse(self, x: int, y: int) -> None: ...
+    def click(self, x: int, y: int, button: str = "left") -> None: ...
+    def double_click(self, x: int, y: int) -> None: ...
+    def drag(self, from_x: int, from_y: int, to_x: int, to_y: int) -> None: ...
+    def scroll(self, x: int, y: int, direction: str, amount: int = 3) -> None: ...
+    def type_text(self, text: str) -> None: ...
+    def press_key(self, key: str) -> None: ...
+    def hotkey(self, *keys: str) -> None: ...
+
+
+@runtime_checkable
+class CompositorHarness(Protocol):
+    """Window manager / compositor query and control capabilities."""
+
+    def workspace_list(self) -> list[dict]: ...
+    def workspace_switch(self, target: str | int) -> None: ...
+    def clients(self) -> list[dict]: ...
+    def active_window(self) -> dict | None: ...
+    def focus_window(self, target: str) -> None: ...
+    def launch_app(self, name: str) -> None: ...
+    def screen_resolution(self) -> tuple[int, int]: ...
+
+
+@runtime_checkable
+class Harness(ScreenshotHarness, InputHarness, CompositorHarness, Protocol):
+    """Full harness — all capabilities combined."""
+
+    name: str  # human-readable: "hyprland", "x11", "macos", "windows"
+
+    def start(self) -> None:
+        """Initialize harness resources. Idempotent."""
+        ...
+
+    def stop(self) -> None:
+        """Release harness resources. Idempotent."""
+        ...
+
+    def verify(self) -> dict:
+        """Return diagnostic info about harness health."""
+        ...
