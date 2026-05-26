@@ -379,6 +379,31 @@ class HyprlandHarness:
             raise ValueError(f"width and height must be > 0, got {width}x{height}")
         return self._grim("-g", f"{x},{y} {width}x{height}")
 
+    def capture_window(self) -> str:
+        """Capture only the active window -> base64 PNG.
+
+        Uses hyprctl activewindow -j for geometry, then grim -g to capture.
+        """
+        try:
+            result = subprocess.run(
+                ["hyprctl", "activewindow", "-j"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"hyprctl activewindow failed: {result.stderr.strip()}")
+            win = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            raise RuntimeError("Failed to parse hyprctl activewindow output")
+        if not win or not win.get("address"):
+            raise RuntimeError("No active window to capture")
+        at = win.get("at", [0, 0])
+        size = win.get("size", [0, 0])
+        x, y = at[0], at[1]
+        w, h = size[0], size[1]
+        if w <= 0 or h <= 0:
+            raise RuntimeError(f"Invalid window geometry: {w}x{h}")
+        return self._grim("-g", f"{x},{y} {w}x{h}")
+
     def save_screenshot(self, path: str) -> None:
         """Capture fullscreen and save to file."""
         result = subprocess.run(
@@ -464,6 +489,7 @@ class HyprlandHarness:
         time.sleep(0.02)
 
     def _resolve_modifier(self, name: str) -> int:
+        _ensure_evdev_maps()
         if name not in _MODIFIER_MAP:
             raise ValueError(f"Unknown modifier: {name!r}")
         return _MODIFIER_MAP[name]
@@ -478,6 +504,10 @@ class HyprlandHarness:
             code = getattr(e, f"KEY_F{name[1:]}", None)
             if code is not None:
                 return code
+        # Fallback: check keymap for printable characters like '/'
+        entry = self._keymap.get(name)
+        if entry is not None:
+            return entry[0]  # just the keycode (caller handles modifiers)
         raise ValueError(f"Unknown key: {name!r}")
 
     def type_text(self, text: str) -> None:
@@ -500,6 +530,11 @@ class HyprlandHarness:
 
     def press_key(self, key: str) -> None:
         from evdev import ecodes as e
+
+        # Detect single printable character — delegate to type_text for proper shift handling
+        if len(key) == 1 and "+" not in key:
+            self.type_text(key)
+            return
 
         parts = [p.strip().lower() for p in key.split("+")]
         modifiers, main_key = parts[:-1], parts[-1]
@@ -556,6 +591,36 @@ class HyprlandHarness:
             )
             if result.returncode != 0:
                 raise RuntimeError(f"grim failed: {result.stderr.strip()}")
+            return pytesseract.image_to_string(Image.open(path))
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
+    def extract_active_window_text(self) -> str:
+        """Capture the active window and extract text from it via OCR."""
+        from PIL import Image
+        import pytesseract
+        path = os.path.join(tempfile.gettempdir(), f"hypr-ocr-{uuid.uuid4()}.png")
+        try:
+            result = subprocess.run(
+                ["hyprctl", "activewindow", "-j"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"hyprctl activewindow failed: {result.stderr.strip()}")
+            win = json.loads(result.stdout)
+            if not win or not win.get("address"):
+                raise RuntimeError("No active window to capture")
+            at = win.get("at", [0, 0])
+            size = win.get("size", [0, 0])
+            x, y = at[0], at[1]
+            w, h = size[0], size[1]
+            if w <= 0 or h <= 0:
+                raise RuntimeError(f"Invalid window geometry: {w}x{h}")
+            subprocess.run(
+                ["grim", "-g", f"{x},{y} {w}x{h}", path],
+                capture_output=True, check=True,
+            )
             return pytesseract.image_to_string(Image.open(path))
         finally:
             if os.path.exists(path):
@@ -636,9 +701,29 @@ class HyprlandHarness:
         }
 
     def focus_window(self, target: str) -> None:
+        # If target looks like a window title (contains spaces or long text),
+        # try title-based matching first, then fall back to class matching.
+        if " " in target or len(target) > 20:
+            try:
+                self._hyprctl("dispatch", "focuswindow", f"title:{target}")
+                return
+            except RuntimeError:
+                pass  # Fall through to class matching
         if ":" not in target:
             target = f"class:{target}"
         self._hyprctl("dispatch", "focuswindow", target)
+
+    def focus_window_by_title(self, title_substring: str) -> None:
+        """Focus a window by partial title match.
+
+        Searches all clients for a title containing the substring
+        and focuses by address.
+        """
+        for client in self.clients():
+            if title_substring.lower() in client["title"].lower():
+                self._hyprctl("dispatch", "focuswindow", f"address:{client['address']}")
+                return
+        raise RuntimeError(f"No window with title containing {title_substring!r}")
 
     def launch_app(self, name: str) -> None:
         """Launch an app via hyprctl dispatch exec."""

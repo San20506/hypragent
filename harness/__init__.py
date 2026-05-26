@@ -35,6 +35,7 @@ def detect_harness() -> "Harness":  # type: ignore[name-defined]
             from harness.hyprland import HyprlandHarness
 
             _HARNESS = HyprlandHarness()
+            _HARNESS.start()
             return _HARNESS
         from harness.x11 import X11Harness
 
