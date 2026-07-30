@@ -1,14 +1,32 @@
-"""Protocol definitions for the harness abstraction layer.
+"""Protocol definition for the harness abstraction layer.
 
-Every platform (Hyprland/Wayland, X11, macOS, Windows) implements these protocols.
+Every platform (Hyprland/Wayland, X11, macOS, Windows) implements this protocol.
 """
 
 from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
-class ScreenshotHarness(Protocol):
-    """Screen capture capabilities."""
+class Harness(Protocol):
+    """Full harness — screenshot, input, and compositor capabilities."""
+
+    name: str  # human-readable: "hyprland", "x11", "macos", "windows"
+
+    # ── Lifecycle ───────────────────────────────────────────────────────
+
+    def start(self) -> None:
+        """Initialize harness resources. Idempotent."""
+        ...
+
+    def stop(self) -> None:
+        """Release harness resources. Idempotent."""
+        ...
+
+    def verify(self) -> dict:
+        """Return diagnostic info about harness health."""
+        ...
+
+    # ── Screenshot ──────────────────────────────────────────────────────
 
     def capture_fullscreen(self) -> str:
         """Capture entire screen → base64 PNG string."""
@@ -22,10 +40,7 @@ class ScreenshotHarness(Protocol):
         """Capture fullscreen and save to file."""
         ...
 
-
-@runtime_checkable
-class InputHarness(Protocol):
-    """Mouse and keyboard input capabilities."""
+    # ── Input ───────────────────────────────────────────────────────────
 
     def move_mouse(self, x: int, y: int) -> None: ...
     def click(self, x: int, y: int, button: str = "left") -> None: ...
@@ -36,10 +51,7 @@ class InputHarness(Protocol):
     def press_key(self, key: str) -> None: ...
     def hotkey(self, *keys: str) -> None: ...
 
-
-@runtime_checkable
-class CompositorHarness(Protocol):
-    """Window manager / compositor query and control capabilities."""
+    # ── Compositor ──────────────────────────────────────────────────────
 
     def workspace_list(self) -> list[dict]: ...
     def workspace_switch(self, target: str | int) -> None: ...
@@ -48,22 +60,3 @@ class CompositorHarness(Protocol):
     def focus_window(self, target: str) -> None: ...
     def launch_app(self, name: str) -> None: ...
     def screen_resolution(self) -> tuple[int, int]: ...
-
-
-@runtime_checkable
-class Harness(ScreenshotHarness, InputHarness, CompositorHarness, Protocol):
-    """Full harness — all capabilities combined."""
-
-    name: str  # human-readable: "hyprland", "x11", "macos", "windows"
-
-    def start(self) -> None:
-        """Initialize harness resources. Idempotent."""
-        ...
-
-    def stop(self) -> None:
-        """Release harness resources. Idempotent."""
-        ...
-
-    def verify(self) -> dict:
-        """Return diagnostic info about harness health."""
-        ...

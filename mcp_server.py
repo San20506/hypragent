@@ -14,7 +14,6 @@ import os
 import shutil
 import subprocess
 import sys
-from types import SimpleNamespace
 
 import yaml
 
@@ -22,23 +21,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from tools.screenshot import capture_fullscreen, capture_region
-from tools.mouse import move_mouse, click, drag, scroll
-from tools.keyboard import type_text, press_key
-from tools.ocr import extract_text_fullscreen, extract_text_from_region
-from tools.files import file_list, file_read, file_write, file_move, file_delete
-from tools.terminal import terminal_run as _terminal_run
-from tools.browser import (
-    browser_open, browser_navigate, browser_click,
-    browser_type, browser_scroll, browser_get_text, browser_close,
-)
-from tools.hyprland import (
-    workspace_list as _hy_workspace_list,
-    workspace_switch as _hy_workspace_switch,
-    clients as _hy_clients,
-    active_window as _hy_active_window,
-    focus_window as _hy_focus_window,
-)
+from tools.dispatch import dispatch_tool
 from agent.action_executor import execute_plan
 from harness import detect_harness
 
@@ -49,13 +32,6 @@ server = Server("hypr-agent")
 
 _CONFIG_PATH = os.path.expanduser("~/.config/hypr-agent/config.yaml")
 _PROJECT_CONFIG = os.path.join(os.path.dirname(__file__), "config.yaml")
-
-
-def _dict_to_namespace(d: dict) -> SimpleNamespace:
-    """Recursively convert a dict to SimpleNamespace for dotted access."""
-    if not isinstance(d, dict):
-        return d
-    return SimpleNamespace(**{k: _dict_to_namespace(v) for k, v in d.items()})
 
 
 def _detect_hyprland_env() -> None:
@@ -75,51 +51,30 @@ def _detect_hyprland_env() -> None:
         pass
 
 
-def _detect_screen_resolution() -> tuple[int, int]:
-    """Auto-detect screen resolution from hyprctl monitors.
-
-    Returns:
-        (width, height) tuple. Falls back to 2560x1440 if detection fails.
-    """
-    try:
-        result = subprocess.run(
-            ["hyprctl", "monitors", "-j"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            monitors = json.loads(result.stdout)
-            if monitors:
-                m = monitors[0]
-                return m.get("width", 2560), m.get("height", 1440)
-    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
-        pass
-    return 2560, 1440
-
-
-def _load_config() -> SimpleNamespace:
+def _load_config() -> dict:
     """Load config from standard locations.
 
     Checks:
       1. ~/.config/hypr-agent/config.yaml  (user config)
       2. ./config.yaml                       (project-local)
 
-    Returns a SimpleNamespace with dotted-attribute access.
+    Returns a dict with dotted-attribute access.
     Falls back to safe defaults if no config found.
     """
     for path in (_CONFIG_PATH, _PROJECT_CONFIG):
         if os.path.isfile(path):
             with open(path) as f:
-                return _dict_to_namespace(yaml.safe_load(f))
+                return yaml.safe_load(f) or {}
 
     # Sensible defaults — enough for MCP tools to work without a config file
-    return _dict_to_namespace({
+    return {
         "tools": {
             "mouse": {"screen_width": 2560, "screen_height": 1440},
             "keyboard": {"type_delay_ms": 12, "use_clipboard_fallback": True},
         },
         "loop": {"max_steps": 20, "confirm_destructive_actions": True},
         "safety": {"command_blocklist": ["rm -rf /", "dd if=", "mkfs"]},
-    })
+    }
 
 
 # ── Doctor (health check) ───────────────────────────────────────────────────
@@ -274,17 +229,15 @@ async def list_tools() -> list[Tool]:
              }, "required": ["path"]}),
         Tool(name="file_write", description="Write content to a file",
              inputSchema={"type": "object", "properties": {
-                 "path": {"type": "string"}, "content": {"type": "string"},
-                 "confirm": {"type": "boolean", "default": True}
+                 "path": {"type": "string"}, "content": {"type": "string"}
              }, "required": ["path", "content"]}),
         Tool(name="file_move", description="Move or rename a file",
              inputSchema={"type": "object", "properties": {
-                 "src": {"type": "string"}, "dst": {"type": "string"},
-                 "confirm": {"type": "boolean", "default": True}
+                 "src": {"type": "string"}, "dst": {"type": "string"}
              }, "required": ["src", "dst"]}),
         Tool(name="file_delete", description="Delete a file",
              inputSchema={"type": "object", "properties": {
-                 "path": {"type": "string"}, "confirm": {"type": "boolean", "default": True}
+                 "path": {"type": "string"}
              }, "required": ["path"]}),
         Tool(name="terminal_run", description="Run a shell command and return output",
              inputSchema={"type": "object", "properties": {
@@ -333,313 +286,20 @@ async def list_tools() -> list[Tool]:
     ]
 
 
-# -- Sync dispatch helper for execute_plan --
-
-def _mcp_dispatch(tool_name: str, args: dict) -> str:
-    """Synchronous dispatch for MCP tools - used by execute_plan internally."""
-    match tool_name:
-        case "take_screenshot":
-            region = args.get("region")
-            if region:
-                return capture_region(
-                    region["x"], region["y"],
-                    region["width"], region["height"],
-                )
-            return capture_fullscreen()
-        case "mouse_move":
-            move_mouse(args["x"], args["y"])
-            return "OK"
-        case "mouse_click":
-            click(args["x"], args["y"], args.get("button", "left"))
-            return "OK"
-        case "mouse_drag":
-            drag(args["from_x"], args["from_y"],
-                 args["to_x"], args["to_y"])
-            return "OK"
-        case "mouse_scroll":
-            scroll(args["x"], args["y"],
-                   args["direction"], args.get("amount", 3))
-            return "OK"
-        case "keyboard_type":
-            type_text(args["text"])
-            return "OK"
-        case "keyboard_press":
-            press_key(args["key"])
-            return "OK"
-        case "read_screen_text":
-            region = args.get("region")
-            if region:
-                return extract_text_from_region(
-                    region["x"], region["y"],
-                    region["width"], region["height"],
-                )
-            return extract_text_fullscreen()
-        case "browser_open":
-            browser_open(args["url"])
-            return "OK"
-        case "browser_navigate":
-            browser_navigate(args["url"])
-            return "OK"
-        case "browser_click":
-            browser_click(args["selector"])
-            return "OK"
-        case "browser_type":
-            browser_type(args["selector"], args["text"])
-            return "OK"
-        case "browser_scroll":
-            browser_scroll(args["direction"], args.get("amount", 300))
-            return "OK"
-        case "browser_get_text":
-            return browser_get_text(args["selector"])
-        case "browser_close":
-            browser_close()
-            return "OK"
-        case "file_list":
-            return json.dumps(file_list(args["path"]))
-        case "file_read":
-            return file_read(args["path"])
-        case "file_write":
-            file_write(args["path"], args["content"], args.get("confirm", True))
-            return "OK"
-        case "file_move":
-            file_move(args["src"], args["dst"], args.get("confirm", True))
-            return "OK"
-        case "file_delete":
-            file_delete(args["path"], args.get("confirm", True))
-            return "OK"
-        case "terminal_run":
-            result = _terminal_run(
-                args["command"],
-                cwd=args.get("cwd"),
-                timeout=args.get("timeout", 30),
-            )
-            output = result.stdout
-            if result.stderr:
-                output += "\n[stderr]\n" + result.stderr
-            if result.timed_out:
-                output = "[timed out]"
-            elif result.returncode != 0:
-                output += "\n[exit " + str(result.returncode) + "]"
-            return output
-        case "hyprland_workspace_list":
-            return json.dumps(_hy_workspace_list(), indent=2)
-        case "hyprland_workspace_switch":
-            _hy_workspace_switch(args["target"])
-            return "OK"
-        case "hyprland_clients":
-            return json.dumps(_hy_clients(), indent=2)
-        case "hyprland_active_window":
-            data = _hy_active_window()
-            return json.dumps(data, indent=2) if data else "null"
-        case "hyprland_focus_window":
-            _hy_focus_window(args["target"])
-            return "OK"
-        case _:
-            return "Unknown tool: " + tool_name
-
-
-
-
 # ── Tool dispatch ───────────────────────────────────────────────────────────
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    match name:
-        case "take_screenshot":
-            try:
-                region = arguments.get("region")
-                if region:
-                    b64 = capture_region(
-                        region["x"], region["y"],
-                        region["width"], region["height"],
-                    )
-                else:
-                    b64 = capture_fullscreen()
-                return [TextContent(type="text", text=b64)]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "mouse_move":
-            try:
-                move_mouse(arguments["x"], arguments["y"])
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "mouse_click":
-            try:
-                click(arguments["x"], arguments["y"], arguments.get("button", "left"))
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "mouse_drag":
-            try:
-                drag(arguments["from_x"], arguments["from_y"],
-                     arguments["to_x"], arguments["to_y"])
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "mouse_scroll":
-            try:
-                scroll(arguments["x"], arguments["y"],
-                       arguments["direction"], arguments.get("amount", 3))
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "keyboard_type":
-            try:
-                type_text(arguments["text"])
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "keyboard_press":
-            try:
-                press_key(arguments["key"])
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "read_screen_text":
-            try:
-                region = arguments.get("region")
-                if region:
-                    text = extract_text_from_region(
-                        region["x"], region["y"],
-                        region["width"], region["height"],
-                    )
-                else:
-                    text = extract_text_fullscreen()
-                return [TextContent(type="text", text=text)]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "browser_open":
-            try:
-                browser_open(arguments["url"])
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "browser_navigate":
-            try:
-                browser_navigate(arguments["url"])
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "browser_click":
-            try:
-                browser_click(arguments["selector"])
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "browser_type":
-            try:
-                browser_type(arguments["selector"], arguments["text"])
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "browser_scroll":
-            try:
-                browser_scroll(arguments["direction"], arguments.get("amount", 300))
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "browser_get_text":
-            try:
-                text = browser_get_text(arguments["selector"])
-                return [TextContent(type="text", text=text)]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "browser_close":
-            try:
-                browser_close()
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "file_list":
-            try:
-                entries = file_list(arguments["path"])
-                return [TextContent(type="text", text=json.dumps(entries))]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "file_read":
-            try:
-                return [TextContent(type="text", text=file_read(arguments["path"]))]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "file_write":
-            try:
-                file_write(arguments["path"], arguments["content"],
-                           arguments.get("confirm", True))
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "file_move":
-            try:
-                file_move(arguments["src"], arguments["dst"],
-                          arguments.get("confirm", True))
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "file_delete":
-            try:
-                file_delete(arguments["path"], arguments.get("confirm", True))
-                return [TextContent(type="text", text="OK")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "terminal_run":
-            try:
-                result = _terminal_run(
-                    arguments["command"],
-                    cwd=arguments.get("cwd"),
-                    timeout=arguments.get("timeout", 30),
-                )
-                output = result.stdout
-                if result.stderr:
-                    output += f"\n[stderr]\n{result.stderr}"
-                if result.timed_out:
-                    output = "[timed out]"
-                elif result.returncode != 0:
-                    output += f"\n[exit {result.returncode}]"
-                return [TextContent(type="text", text=output)]
-            except ValueError as e:
-                return [TextContent(type="text", text=f"Blocked: {e}")]
-            except Exception as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "hyprland_workspace_list":
-            try:
-                data = _hy_workspace_list()
-                return [TextContent(type="text", text=json.dumps(data, indent=2))]
-            except RuntimeError as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "hyprland_workspace_switch":
-            try:
-                _hy_workspace_switch(arguments["target"])
-                return [TextContent(type="text", text="OK")]
-            except RuntimeError as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "hyprland_clients":
-            try:
-                data = _hy_clients()
-                return [TextContent(type="text", text=json.dumps(data, indent=2))]
-            except RuntimeError as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "hyprland_active_window":
-            try:
-                data = _hy_active_window()
-                return [TextContent(type="text", text=json.dumps(data, indent=2) if data else "null")]
-            except RuntimeError as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "hyprland_focus_window":
-            try:
-                _hy_focus_window(arguments["target"])
-                return [TextContent(type="text", text="OK")]
-            except RuntimeError as e:
-                return [TextContent(type="text", text=f"Error: {e}")]
-        case "execute_plan":
-            try:
-                actions = arguments["actions"]
-                plan_result = execute_plan(actions, _mcp_dispatch, verify=True)
-                return [TextContent(type="text", text=json.dumps(plan_result, indent=2))]
-            except Exception as e:
-                return [TextContent(type="text", text="Error: " + str(e))]
-        case _:
-            return [TextContent(type="text", text=f"Unknown tool: {name}")]
+    try:
+        if name == "execute_plan":
+            plan_result = execute_plan(arguments["actions"], dispatch_tool, verify=True)
+            return [TextContent(type="text", text=json.dumps(plan_result, indent=2))]
+        result = dispatch_tool(name, arguments)
+        return [TextContent(type="text", text=result)]
+    except ValueError as e:
+        return [TextContent(type="text", text=f"Blocked: {e}")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
 
 
 # ── Server entry point ──────────────────────────────────────────────────────
@@ -648,18 +308,11 @@ async def _run() -> None:
     _detect_hyprland_env()
 
     config = _load_config()
-    screen_w, screen_h = _detect_screen_resolution()
-
-    # Override config defaults with auto-detected resolution if not explicitly set
-    try:
-        if config.tools.mouse.screen_width == 2560 and config.tools.mouse.screen_height == 1440:
-            config.tools.mouse.screen_width = screen_w
-            config.tools.mouse.screen_height = screen_h
-    except AttributeError:
-        pass
 
     _harness = detect_harness()
     _harness.start(config)
+    # Resolution comes from the harness's own scale-aware detection
+    screen_w, screen_h = _harness.screen_resolution()
     print(f"[HyprAgent] Screen: {screen_w}x{screen_h}", file=sys.stderr)
 
     try:

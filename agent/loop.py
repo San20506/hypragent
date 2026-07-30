@@ -6,22 +6,8 @@ import signal
 from datetime import datetime, timezone
 
 from tools.screenshot import capture_fullscreen
-from tools.ocr import extract_text_fullscreen, extract_text_from_region
-from tools.mouse import move_mouse, click, drag, scroll
-from tools.keyboard import type_text, press_key
-from tools.files import file_read, file_write
-from tools.terminal import terminal_run as _run_terminal
-from tools.browser import (
-    browser_open, browser_navigate, browser_click,
-    browser_type, browser_scroll, browser_get_text,
-)
-from tools.hyprland import (
-    workspace_list as _hy_workspace_list,
-    workspace_switch as _hy_workspace_switch,
-    clients as _hy_clients,
-    active_window as _hy_active_window,
-    focus_window as _hy_focus_window,
-)
+from tools.ocr import extract_text_fullscreen
+from tools.dispatch import dispatch_tool
 from agent.backends.base import AgentResponse, BackendAdapter
 from agent.action_executor import execute_plan
 
@@ -132,7 +118,6 @@ AGENT_TOOLS = [
 
 def _audit(tool_name: str, arguments: dict, result: str) -> None:
     """Append a JSON line to the audit log."""
-    os.makedirs(os.path.dirname(_AUDIT_LOG), exist_ok=True)
     entry = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "tool": tool_name,
@@ -160,84 +145,13 @@ def _dispatch_tool(name: str, arguments: dict, config: dict | None = None) -> st
     if config is not None and name in _DESTRUCTIVE_TOOLS:
         if not _confirm(name, arguments, config):
             return "Cancelled by user"
-    try:
-        match name:
-            case "take_screenshot":
-                return capture_fullscreen()
-            case "mouse_move":
-                move_mouse(arguments["x"], arguments["y"])
-                return "OK"
-            case "mouse_click":
-                click(arguments["x"], arguments["y"], arguments.get("button", "left"))
-                return "OK"
-            case "mouse_drag":
-                drag(arguments["from_x"], arguments["from_y"],
-                     arguments["to_x"], arguments["to_y"])
-                return "OK"
-            case "mouse_scroll":
-                scroll(arguments["x"], arguments["y"],
-                       arguments["direction"], arguments.get("amount", 3))
-                return "OK"
-            case "keyboard_type":
-                type_text(arguments["text"])
-                return "OK"
-            case "keyboard_press":
-                press_key(arguments["key"])
-                return "OK"
-            case "read_screen_text":
-                return extract_text_fullscreen()
-            case "terminal_run":
-                result = _run_terminal(
-                    arguments["command"],
-                    cwd=arguments.get("cwd"),
-                    timeout=arguments.get("timeout", 30),
-                )
-                out = result.stdout
-                if result.stderr:
-                    out += f"\n[stderr]\n{result.stderr}"
-                if result.timed_out:
-                    out = "[timed out]"
-                elif result.returncode != 0:
-                    out += f"\n[exit {result.returncode}]"
-                return out
-            case "file_read":
-                return file_read(arguments["path"])
-            case "file_write":
-                file_write(arguments["path"], arguments["content"], confirm=False)
-                return "OK"
-            case "browser_open":
-                browser_open(arguments["url"])
-                return "OK"
-            case "browser_get_text":
-                return browser_get_text(arguments["selector"])
-            # ── Hyprland compositor tools (M2.5) ──────────────────────────
-            case "hyprland_workspace_list":
-                return json.dumps(_hy_workspace_list(), indent=2)
-            case "hyprland_workspace_switch":
-                _hy_workspace_switch(arguments["target"])
-                return "OK"
-            case "hyprland_clients":
-                return json.dumps(_hy_clients(), indent=2)
-            case "hyprland_active_window":
-                data = _hy_active_window()
-                return json.dumps(data, indent=2) if data else "null"
-            case "hyprland_focus_window":
-                _hy_focus_window(arguments["target"])
-                return "OK"
-            # ── Parallel execution ───────────────────────────────────────
-            case "execute_plan":
-                actions = arguments["actions"]
-                # Create a dispatch wrapper that captures the current config
-                def _plan_dispatch(tool: str, args: dict) -> str:
-                    return _dispatch_tool(tool, args, config)
-                result = execute_plan(actions, _plan_dispatch, verify=True)
-                return json.dumps(result, indent=2)
-            case _:
-                return f"Unknown tool: {name}"
-    except ValueError as e:
-        return f"Blocked: {e}"
-    except Exception as e:
-        return f"Error: {e}"
+    if name == "execute_plan":
+        actions = arguments["actions"]
+        def _plan_dispatch(tool: str, args: dict) -> str:
+            return _dispatch_tool(tool, args, config)
+        result = execute_plan(actions, _plan_dispatch, verify=True)
+        return json.dumps(result, indent=2)
+    return dispatch_tool(name, arguments)
 
 
 class AgentLoop:
@@ -258,6 +172,7 @@ class AgentLoop:
         self._step = 0
         self._history: list[dict] = []
         self._killed = False
+        os.makedirs(os.path.dirname(_AUDIT_LOG), exist_ok=True)
         signal.signal(signal.SIGINT, self._handle_sigint)
 
     def _handle_sigint(self, signum: int, frame: object) -> None:

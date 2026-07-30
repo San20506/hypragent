@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.HyprAgent" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">#6750A4</item>
+        <item name="colorPrimaryContainer">#4A3780</item>
+        <item name="colorSecondary">#625B71</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="Theme.HyprAgent.Dialog" parent="Theme.Material3.Dark.Dialog">
+        <item name="colorPrimary">#6750A4</item>
+    </style>
+</resources>

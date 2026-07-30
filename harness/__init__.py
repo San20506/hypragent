@@ -66,13 +66,10 @@ def reset_harness() -> None:
     _HARNESS = None
 
 
-from harness.base import Harness, ScreenshotHarness, InputHarness, CompositorHarness
+from harness.base import Harness
 
 __all__ = [
     "Harness",
-    "ScreenshotHarness",
-    "InputHarness",
-    "CompositorHarness",
     "detect_harness",
     "reset_harness",
 ]

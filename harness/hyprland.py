@@ -229,9 +229,9 @@ class HyprlandHarness:
         # Override resolution from config if provided
         if config is not None:
             try:
-                self._screen_w = config.tools.mouse.screen_width  # type: ignore[union-attr]
-                self._screen_h = config.tools.mouse.screen_height  # type: ignore[union-attr]
-            except AttributeError:
+                self._screen_w = config["tools"]["mouse"]["screen_width"]
+                self._screen_h = config["tools"]["mouse"]["screen_height"]
+            except (KeyError, TypeError):
                 pass
 
         self._create_devices()

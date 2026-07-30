@@ -43,9 +43,6 @@ _PERCEIVE = {
     "extract_active_window_text",
 }
 
-# Destructive tools: need confirmation from config
-_DESTRUCTIVE = {"file_write", "file_move", "file_delete"}
-
 
 class ActionPlan:
     """A plan of action tasks with dependency tracking."""
@@ -72,10 +69,6 @@ class ActionPlan:
         """True when every task has been completed *or* failed."""
         return len(self.completed) + len(self.failed) >= len(self._actions)
 
-    def has_ready(self) -> bool:
-        """True when at least one task is ready (dependencies satisfied)."""
-        return len(self.ready_tasks()) > 0
-
     # ── state transitions ────────────────────────────────────────────────
 
     def mark_done(self, task_id: str, result: Any) -> None:
@@ -87,13 +80,6 @@ class ActionPlan:
         """Record a task failure."""
         self.failed[task_id] = error
         self._actions.pop(task_id, None)
-
-    # ── reset for re-use ─────────────────────────────────────────────────
-
-    def clear(self) -> None:
-        """Discard all results.  Not normally needed."""
-        self.completed.clear()
-        self.failed.clear()
 
 
 # ── executor ─────────────────────────────────────────────────────────────

@@ -30,23 +30,14 @@ def _ensure_browser() -> Page:
 
 
 def browser_open(url: str) -> None:
-    """Open a new browser window and navigate to URL.
-
-    Args:
-        url: URL to open, including scheme (https://).
-    """
+    """Navigate to a URL in the current browser tab."""
     page = _ensure_browser()
     page.goto(url, wait_until="domcontentloaded")
 
 
 def browser_navigate(url: str) -> None:
-    """Navigate the current browser tab to a URL.
-
-    Args:
-        url: URL to navigate to.
-    """
-    page = _ensure_browser()
-    page.goto(url, wait_until="domcontentloaded")
+    """Navigate the current browser tab to a URL. Alias for browser_open."""
+    browser_open(url)
 
 
 def browser_click(selector: str) -> None:

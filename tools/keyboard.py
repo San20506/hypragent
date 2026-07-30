@@ -1,16 +1,6 @@
 """Keyboard control tool — thin dispatcher to active platform harness."""
 
-from harness import detect_harness
-
-_harness = None
-
-
-def _get_harness():
-    global _harness
-    if _harness is None:
-        _harness = detect_harness()
-        _harness.start()
-    return _harness
+from tools import _get_harness
 
 
 def type_text(text: str) -> None:

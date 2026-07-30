@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HYPR Agent</string>
+    <string name="accessibility_service_label">HYPR Agent Accessibility</string>
+    <string name="accessibility_service_description">Allows HYPR Agent to read screen content and perform gestures on your behalf.</string>
+
+    <!-- Notification -->
+    <string name="notification_channel_id">hypr_agent_channel</string>
+    <string name="notification_channel_name">HYPR Agent Status</string>
+    <string name="notification_title">HYPR Agent</string>
+    <string name="notification_idle">Idle</string>
+    <string name="notification_processing">Processing task...</string>
+    <string name="notification_stopped">Agent stopped</string>
+
+    <!-- Actions -->
+    <string name="action_stop">Stop</string>
+    <string name="action_restart">Restart</string>
+    <string name="action_revoke_consent">Revoke Consent</string>
+
+    <!-- Consent -->
+    <string name="consent_title">Agent Permission Request</string>
+    <string name="consent_message">HYPR Agent wants to control %1$s.\n\nPermissions: %2$s</string>
+    <string name="consent_allow">Allow</string>
+    <string name="consent_deny">Deny</string>
+
+    <!-- Main UI -->
+    <string name="status_idle">HYPR Agent — Idle</string>
+    <string name="task_hint">Describe the task for the agent…</string>
+    <string name="action_run_task">Run Task</string>
+    <string name="action_start_agent">Start Agent</string>
+    <string name="action_stop_agent">Stop Agent</string>
+    <string name="action_enable_accessibility">Enable Accessibility Service</string>
+    <string name="accessibility_enabled">Accessibility service: enabled</string>
+    <string name="accessibility_disabled">Accessibility service: DISABLED — tap below to enable</string>
+</resources>

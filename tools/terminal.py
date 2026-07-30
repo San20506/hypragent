@@ -101,13 +101,4 @@ def terminal_run(
         return TerminalResult(stdout="", stderr="", returncode=-1, timed_out=True)
 
 
-def terminal_run_interactive(command: str) -> None:
-    """Open a command in the user's terminal emulator.
 
-    Use for commands that require interactive input (e.g. text editors, REPLs).
-    The terminal window is opened but not monitored.
-
-    Args:
-        command: Shell command to run interactively.
-    """
-    raise NotImplementedError("terminal_run_interactive not yet implemented")
