@@ -4,13 +4,15 @@ Connects to: Claude Code, OpenCode, Hermes Agent, or any MCP-compatible client.
 Transport: stdio (default). Run with: uv run hypragent
 
 22 tools: screenshots, mouse/keyboard control, OCR, browser automation,
-file management, terminal execution, and Hyprland compositor integration.
+file management, terminal execution, and compositor integration
+(hyprland_* on Linux, windows_* on Windows).
 """
 
 import argparse
 import asyncio
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -30,12 +32,22 @@ server = Server("hypr-agent")
 
 # ── Config ──────────────────────────────────────────────────────────────────
 
-_CONFIG_PATH = os.path.expanduser("~/.config/hypr-agent/config.yaml")
+_IS_WINDOWS = platform.system() == "Windows"
+
+if _IS_WINDOWS:
+    _CONFIG_PATH = os.path.join(
+        os.environ.get("APPDATA", os.path.expanduser("~")),
+        "hypr-agent", "config.yaml",
+    )
+else:
+    _CONFIG_PATH = os.path.expanduser("~/.config/hypr-agent/config.yaml")
 _PROJECT_CONFIG = os.path.join(os.path.dirname(__file__), "config.yaml")
 
 
 def _detect_hyprland_env() -> None:
     """Auto-detect Hyprland environment variables if not already set."""
+    if _IS_WINDOWS:
+        return
     if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
         return
 
@@ -72,7 +84,13 @@ def _load_config() -> dict:
             "mouse": {"screen_width": 2560, "screen_height": 1440},
             "keyboard": {"type_delay_ms": 12, "use_clipboard_fallback": True},
         },
-        "loop": {"max_steps": 20, "confirm_destructive_actions": True},
+        "loop": {
+            "max_steps": 20,
+            "confirm_destructive_actions": True,
+            "scale_screenshots": True,
+            "scale_max_width": 1024,
+            "scale_max_height": 768,
+        },
         "safety": {"command_blocklist": ["rm -rf /", "dd if=", "mkfs"]},
     }
 
@@ -81,6 +99,69 @@ def _load_config() -> dict:
 
 def run_doctor() -> int:
     """Check all system dependencies and report status. Returns exit code."""
+    if _IS_WINDOWS:
+        return _run_doctor_windows()
+    return _run_doctor_linux()
+
+
+def _run_doctor_windows() -> int:
+    """Windows-specific dependency checks."""
+    all_ok = True
+    print("HyprAgent Doctor (Windows)\n" + "=" * 50)
+
+    # Python
+    print(f"  Python ....................... {sys.version.split()[0]} ({sys.executable})")
+
+    # Tesseract OCR
+    tess = shutil.which("tesseract")
+    if tess:
+        print(f"  Tesseract .................... found ({tess})")
+    else:
+        print("  Tesseract .................... MISSING")
+        all_ok = False
+
+    # Pillow / ImageGrab
+    try:
+        from PIL import ImageGrab  # noqa: F401
+        print("  Pillow/ImageGrab ............. OK")
+    except ImportError:
+        print("  Pillow/ImageGrab ............. MISSING")
+        all_ok = False
+
+    # pytesseract
+    try:
+        import pytesseract  # noqa: F401
+        print("  pytesseract .................. OK")
+    except ImportError:
+        print("  pytesseract .................. MISSING (pip install pytesseract)")
+        all_ok = False
+
+    # Screen resolution
+    try:
+        import ctypes
+        w = ctypes.windll.user32.GetSystemMetrics(0)
+        h = ctypes.windll.user32.GetSystemMetrics(1)
+        print(f"  Screen resolution ............ {w}x{h}")
+    except Exception:
+        print("  Screen resolution ............ could not detect")
+
+    # Config
+    config_found = os.path.isfile(_CONFIG_PATH) or os.path.isfile(_PROJECT_CONFIG)
+    print(f"  config.yaml .................. {'found' if config_found else 'not found (using defaults)'}")
+
+    print()
+    if all_ok:
+        print("All checks passed.")
+        return 0
+    else:
+        print("Some checks failed. Install missing dependencies:")
+        print("  winget install UB-Mannheim.TesseractOCR")
+        print("  pip install pytesseract Pillow")
+        return 1
+
+
+def _run_doctor_linux() -> int:
+    """Linux/Hyprland dependency checks."""
     checks = {
         "grim": shutil.which("grim"),
         "hyprctl": shutil.which("hyprctl"),
@@ -149,7 +230,7 @@ def run_doctor() -> int:
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
-    return [
+    tools = [
         Tool(name="take_screenshot", description="Capture the current screen or a region of it",
              inputSchema={"type": "object", "properties": {
                  "region": {"type": "object", "properties": {
@@ -245,27 +326,59 @@ async def list_tools() -> list[Tool]:
                  "cwd": {"type": "string"},
                  "timeout": {"type": "integer", "default": 30}
              }, "required": ["command"]}),
-        Tool(name="hyprland_workspace_list",
-             description="List all Hyprland workspaces with id, name, window count, monitor, and active flag",
-             inputSchema={"type": "object", "properties": {}}),
-        Tool(name="hyprland_workspace_switch",
-             description="Switch to a workspace by id, name, +1, -1, or 'previous'",
-             inputSchema={"type": "object", "properties": {
-                 "target": {"type": "string",
-                            "description": "Workspace id, name, +1, -1, or 'previous'"}
-             }, "required": ["target"]}),
-        Tool(name="hyprland_clients",
-             description="List all open windows with class, title, pid, workspace, position, and size",
-             inputSchema={"type": "object", "properties": {}}),
-        Tool(name="hyprland_active_window",
-             description="Get the currently focused window (class, title, workspace)",
-             inputSchema={"type": "object", "properties": {}}),
-        Tool(name="hyprland_focus_window",
-             description="Focus a window by class (class:firefox) or address (address:0x...)",
-             inputSchema={"type": "object", "properties": {
-                 "target": {"type": "string",
-                            "description": "Window target: 'class:name' or 'address:0x...'"}
-             }, "required": ["target"]}),
+    ]
+
+    # Compositor tools — platform-specific prefix
+    if _IS_WINDOWS:
+        tools.extend([
+            Tool(name="windows_workspace_list",
+                 description="List virtual desktops",
+                 inputSchema={"type": "object", "properties": {}}),
+            Tool(name="windows_workspace_switch",
+                 description="Switch virtual desktop: 'next', 'previous'",
+                 inputSchema={"type": "object", "properties": {
+                     "target": {"type": "string",
+                                "description": "'next', 'previous', or desktop number"}
+                 }, "required": ["target"]}),
+            Tool(name="windows_clients",
+                 description="List all visible windows with title, class, and handle",
+                 inputSchema={"type": "object", "properties": {}}),
+            Tool(name="windows_active_window",
+                 description="Get the currently focused window (title, class)",
+                 inputSchema={"type": "object", "properties": {}}),
+            Tool(name="windows_focus_window",
+                 description="Focus a window by title substring or class name",
+                 inputSchema={"type": "object", "properties": {
+                     "target": {"type": "string",
+                                "description": "Window title substring or class name"}
+                 }, "required": ["target"]}),
+        ])
+    else:
+        tools.extend([
+            Tool(name="hyprland_workspace_list",
+                 description="List all Hyprland workspaces with id, name, window count, monitor, and active flag",
+                 inputSchema={"type": "object", "properties": {}}),
+            Tool(name="hyprland_workspace_switch",
+                 description="Switch to a workspace by id, name, +1, -1, or 'previous'",
+                 inputSchema={"type": "object", "properties": {
+                     "target": {"type": "string",
+                                "description": "Workspace id, name, +1, -1, or 'previous'"}
+                 }, "required": ["target"]}),
+            Tool(name="hyprland_clients",
+                 description="List all open windows with class, title, pid, workspace, position, and size",
+                 inputSchema={"type": "object", "properties": {}}),
+            Tool(name="hyprland_active_window",
+                 description="Get the currently focused window (class, title, workspace)",
+                 inputSchema={"type": "object", "properties": {}}),
+            Tool(name="hyprland_focus_window",
+                 description="Focus a window by class (class:firefox) or address (address:0x...)",
+                 inputSchema={"type": "object", "properties": {
+                     "target": {"type": "string",
+                                "description": "Window target: 'class:name' or 'address:0x...'"}
+                 }, "required": ["target"]}),
+        ])
+
+    tools.append(
         Tool(name="execute_plan",
              description="Execute a batch of actions with dependency-aware parallelism. "
                          "Provide a list of actions, each with id, tool, args, and optional "
@@ -283,7 +396,9 @@ async def list_tools() -> list[Tool]:
                          "depends_on": {"type": "array", "items": {"type": "string"}},
                      }, "required": ["id", "tool", "args"]}},
              }, "required": ["actions"]}),
-    ]
+    )
+
+    return tools
 
 
 # ── Tool dispatch ───────────────────────────────────────────────────────────

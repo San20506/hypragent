@@ -1,6 +1,7 @@
 """Shared tool dispatch — single source of truth for all MCP tool routing."""
 
 import json
+import platform
 
 from tools.screenshot import capture_fullscreen, capture_region
 from tools.mouse import move_mouse, click, drag, scroll
@@ -19,6 +20,10 @@ from tools.hyprland import (
     active_window as _hy_active_window,
     focus_window as _hy_focus_window,
 )
+
+
+def _is_windows() -> bool:
+    return platform.system() == "Windows"
 
 
 def dispatch_tool(tool_name: str, args: dict) -> str:
@@ -104,17 +109,18 @@ def dispatch_tool(tool_name: str, args: dict) -> str:
             elif result.returncode != 0:
                 output += "\n[exit " + str(result.returncode) + "]"
             return output
-        case "hyprland_workspace_list":
+        # Compositor tools — platform-specific prefix, same harness backend
+        case "hyprland_workspace_list" | "windows_workspace_list":
             return json.dumps(_hy_workspace_list(), indent=2)
-        case "hyprland_workspace_switch":
+        case "hyprland_workspace_switch" | "windows_workspace_switch":
             _hy_workspace_switch(args["target"])
             return "OK"
-        case "hyprland_clients":
+        case "hyprland_clients" | "windows_clients":
             return json.dumps(_hy_clients(), indent=2)
-        case "hyprland_active_window":
+        case "hyprland_active_window" | "windows_active_window":
             data = _hy_active_window()
             return json.dumps(data, indent=2) if data else "null"
-        case "hyprland_focus_window":
+        case "hyprland_focus_window" | "windows_focus_window":
             _hy_focus_window(args["target"])
             return "OK"
         case _:

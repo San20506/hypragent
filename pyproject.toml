@@ -19,8 +19,11 @@ hyprland = [
     "evdev>=1.6",
     "pytesseract>=0.3",
 ]
+windows = [
+    "pytesseract>=0.3",
+]
 browser = ["playwright>=1.45"]
-all = ["hypragent[hyprland,browser]"]
+all = ["hypragent[hyprland,windows,browser]"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -35,6 +38,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
     "wayland: requires a running Wayland session with grim and /dev/uinput access",
+    "windows: requires Windows 10/11",
 ]
 
 [build-system]

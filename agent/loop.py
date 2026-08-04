@@ -1,9 +1,14 @@
 """Agent loop — perceive → reason → act cycle. Milestones M6 + M10."""
 
+import base64
+import io
 import json
 import os
+import platform
 import signal
 from datetime import datetime, timezone
+
+from PIL import Image
 
 from tools.screenshot import capture_fullscreen
 from tools.ocr import extract_text_fullscreen
@@ -12,8 +17,53 @@ from agent.backends.base import AgentResponse, BackendAdapter
 from agent.action_executor import execute_plan
 
 
+_IS_WINDOWS = platform.system() == "Windows"
+
+# Mouse tools whose coordinates are in screenshot space and must be
+# scaled back to native pixels when HiDPI scaling is active.
+MOUSE_COORD_TOOLS = frozenset({
+    "mouse_move", "mouse_click", "mouse_drag", "mouse_scroll",
+})
+
+
+def scale_screenshot(
+    base64_png: str,
+    max_w: int = 1024,
+    max_h: int = 768,
+) -> tuple[str, float]:
+    """Scale a base64 PNG down to fit within max_w x max_h.
+
+    Mirrors Claude Computer Use's approach (scale to XGA/WXGA for token
+    efficiency). No-op for images already smaller than the target.
+
+    Args:
+        base64_png: Base64-encoded PNG screenshot at native resolution.
+        max_w: Maximum scaled width.
+        max_h: Maximum scaled height.
+
+    Returns:
+        (scaled_base64, scale_factor) where scale_factor converts scaled
+        coordinates back to native pixels: native = scaled * scale_factor.
+    """
+    data = base64.b64decode(base64_png)
+    img = Image.open(io.BytesIO(data))
+    orig_w, orig_h = img.size
+
+    if orig_w <= max_w and orig_h <= max_h:
+        return base64_png, 1.0
+
+    ratio = min(max_w / orig_w, max_h / orig_h)
+    new_w = max(1, int(orig_w * ratio))
+    new_h = max(1, int(orig_h * ratio))
+    img = img.resize((new_w, new_h), Image.LANCZOS)
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    scaled = base64.b64encode(buf.getvalue()).decode("ascii")
+    return scaled, orig_w / new_w
+
 _SYSTEM_PROMPT = (
-    "You are a desktop automation agent running on Hyprland/Wayland. "
+    "You are a desktop automation agent. "
     "You control the desktop by calling tools. You receive screenshots and OCR text "
     "to perceive the current screen state. "
     "Complete the given task by using tools, then respond with 'TASK COMPLETE' "
@@ -28,6 +78,26 @@ _SYSTEM_PROMPT = (
 _AUDIT_LOG = os.path.expanduser("~/.config/hypr-agent/audit.log")
 
 _DESTRUCTIVE_TOOLS = {"file_write", "file_move", "file_delete", "terminal_run"}
+
+_COMPOSITOR_TOOLS = [
+    {"name": "windows_workspace_list" if _IS_WINDOWS else "hyprland_workspace_list",
+     "description": "List all virtual desktops / workspaces",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "windows_workspace_switch" if _IS_WINDOWS else "hyprland_workspace_switch",
+     "description": "Switch virtual desktop / workspace",
+     "inputSchema": {"type": "object", "properties": {
+         "target": {"type": "string"}}, "required": ["target"]}},
+    {"name": "windows_clients" if _IS_WINDOWS else "hyprland_clients",
+     "description": "List all open windows",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "windows_active_window" if _IS_WINDOWS else "hyprland_active_window",
+     "description": "Get the focused window",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "windows_focus_window" if _IS_WINDOWS else "hyprland_focus_window",
+     "description": "Focus window by title substring or class name",
+     "inputSchema": {"type": "object", "properties": {
+         "target": {"type": "string"}}, "required": ["target"]}},
+]
 
 AGENT_TOOLS = [
     {"name": "take_screenshot", "description": "Capture the current screen",
@@ -79,25 +149,7 @@ AGENT_TOOLS = [
     {"name": "browser_get_text", "description": "Get visible text from a browser element",
      "inputSchema": {"type": "object", "properties": {
          "selector": {"type": "string"}}, "required": ["selector"]}},
-    # ── Hyprland compositor tools (M2.5) ──────────────────────────────────────
-    {"name": "hyprland_workspace_list",
-     "description": "List all Hyprland workspaces — id, name, window count, monitor, active flag",
-     "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "hyprland_workspace_switch",
-     "description": "Switch to workspace by id, name, +1, -1, or 'previous'",
-     "inputSchema": {"type": "object", "properties": {
-         "target": {"type": "string"}}, "required": ["target"]}},
-    {"name": "hyprland_clients",
-     "description": "List all open windows — class, title, pid, workspace, position, size",
-     "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "hyprland_active_window",
-     "description": "Get the focused window — class, title, workspace (pre-action sanity check)",
-     "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "hyprland_focus_window",
-     "description": "Focus window by class:name or address:0x...",
-     "inputSchema": {"type": "object", "properties": {
-         "target": {"type": "string"}}, "required": ["target"]}},
-    # ── Parallel execution tool ──────────────────────────────────────────────
+    *_COMPOSITOR_TOOLS,
     {"name": "execute_plan",
      "description": "Execute a batch of actions with dependency-aware parallelism. "
                     "Independent actions run in parallel. Actions with dependencies wait "
@@ -172,6 +224,16 @@ class AgentLoop:
         self._step = 0
         self._history: list[dict] = []
         self._killed = False
+        loop_cfg = config.get("loop", {})
+        self._scale_screenshots = loop_cfg.get("scale_screenshots", True)
+        self._scale_max_w = loop_cfg.get("scale_max_width", 1024)
+        self._scale_max_h = loop_cfg.get("scale_max_height", 768)
+        self._scale_factor = 1.0
+        from tools import _get_harness
+        try:
+            self._screen_w, self._screen_h = _get_harness().screen_resolution()
+        except Exception:
+            self._screen_w, self._screen_h = 1920, 1080
         os.makedirs(os.path.dirname(_AUDIT_LOG), exist_ok=True)
         signal.signal(signal.SIGINT, self._handle_sigint)
 
@@ -223,43 +285,92 @@ class AgentLoop:
         """Capture screenshot and OCR text from current screen state.
 
         Returns:
-            Perception dict with keys: screenshot_b64, ocr_text.
+            Perception dict with keys: screenshot_b64, ocr_text, scale.
+            If OCR fails (e.g. tesseract not installed), ocr_text is empty.
         """
+        screenshot = capture_fullscreen()
+        try:
+            ocr_text = extract_text_fullscreen()
+        except Exception:
+            ocr_text = ""
+
+        self._scale_factor = 1.0
+        if self._scale_screenshots:
+            screenshot, self._scale_factor = scale_screenshot(
+                screenshot, self._scale_max_w, self._scale_max_h,
+            )
+
         return {
-            "screenshot_b64": capture_fullscreen(),
-            "ocr_text": extract_text_fullscreen(),
+            "screenshot_b64": screenshot,
+            "ocr_text": ocr_text,
+            "scale": self._scale_factor,
         }
 
     def _reason(self, perception: dict, task: str) -> AgentResponse:
         """Send perception + history to backend for reasoning.
 
+        Respects backend.supports_vision(): vision backends get screenshots,
+        non-vision backends get OCR text only.
+
         Returns:
             AgentResponse with content and any tool_calls.
         """
         ocr_text = perception["ocr_text"].strip()
-        if not self._history:
-            content = f"{_SYSTEM_PROMPT}\n\nTask: {task}\n\nScreen OCR:\n{ocr_text}"
+        scale = perception.get("scale", 1.0)
+
+        if self.backend.supports_vision():
+            images = [perception["screenshot_b64"]]
+            vision_note = "You can see the screen via screenshots."
         else:
-            content = f"Screen OCR:\n{ocr_text}"
+            images = []
+            vision_note = (
+                "You CANNOT see the screen. Perceive the screen state "
+                "entirely through the OCR text below."
+            )
+
+        if not self._history:
+            content = (
+                f"{_SYSTEM_PROMPT}\n\n"
+                f"Screen resolution: {self._screen_w}x{self._screen_h} "
+                f"(screenshot scale: {scale:.2f}x)\n\n"
+                f"{vision_note}\n\n"
+                f"Task: {task}\n\n"
+                f"Screen OCR:\n{ocr_text}"
+            )
+        else:
+            content = (
+                f"Screen OCR:\n{ocr_text}\n"
+                f"(screenshot scale: {scale:.2f}x — coordinates are in "
+                f"native screen pixels)"
+            )
 
         messages = [*self._history, {"role": "user", "content": content}]
 
         return self.backend.send_message(
             messages=messages,
             tools=AGENT_TOOLS,
-            images=[perception["screenshot_b64"]],
+            images=images,
         )
 
     def _act(self, response: AgentResponse) -> list[dict]:
         """Execute tool calls from backend response.
 
+        Mouse coordinates returned by the model are in scaled screenshot
+        space; they are converted to native pixels via self._scale_factor.
+
         Returns:
             List of tool result dicts in Claude tool_result format.
         """
+        scale = self._scale_factor
         results = []
         for tc in response.tool_calls:
-            result_str = _dispatch_tool(tc["name"], tc["input"], self.config)
-            _audit(tc["name"], tc["input"], result_str)
+            args = dict(tc["input"])
+            if scale != 1.0 and tc["name"] in MOUSE_COORD_TOOLS:
+                for key in ("x", "y", "from_x", "from_y", "to_x", "to_y"):
+                    if key in args:
+                        args[key] = int(args[key] * scale)
+            result_str = _dispatch_tool(tc["name"], args, self.config)
+            _audit(tc["name"], args, result_str)
             results.append({
                 "type": "tool_result",
                 "tool_use_id": tc["id"],

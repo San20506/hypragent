@@ -9,6 +9,7 @@ Run all tests (requires Wayland session, grim, /dev/uinput):
 
 import base64
 import os
+import platform
 import tempfile
 from unittest.mock import MagicMock
 
@@ -17,6 +18,8 @@ import pytest
 from agent.backends.base import AgentResponse, BackendAdapter
 from agent.backends import load_backend
 from agent.loop import AgentLoop, AGENT_TOOLS, _dispatch_tool
+
+_IS_WINDOWS = platform.system() == "Windows"
 
 
 # ── Imports ───────────────────────────────────────────────────────────────────
@@ -54,9 +57,14 @@ async def test_mcp_server_lists_tools():
     assert "browser_open" in names
     assert "file_write" in names
     assert "read_screen_text" in names
-    for hy in ["hyprland_workspace_list", "hyprland_workspace_switch",
-               "hyprland_clients", "hyprland_active_window", "hyprland_focus_window"]:
-        assert hy in names
+    if _IS_WINDOWS:
+        for w in ["windows_workspace_list", "windows_workspace_switch",
+                   "windows_clients", "windows_active_window", "windows_focus_window"]:
+            assert w in names
+    else:
+        for hy in ["hyprland_workspace_list", "hyprland_workspace_switch",
+                   "hyprland_clients", "hyprland_active_window", "hyprland_focus_window"]:
+            assert hy in names
 
 
 # ── File Tools ────────────────────────────────────────────────────────────────
@@ -66,11 +74,11 @@ def test_file_write_read_delete():
     fd, path = tempfile.mkstemp(suffix=".txt")
     os.close(fd)
     try:
-        file_write(path, "integration test", confirm=False)
+        file_write(path, "integration test")
         assert file_read(path) == "integration test"
     finally:
         if os.path.exists(path):
-            file_delete(path, confirm=False)
+            file_delete(path)
     assert not os.path.exists(path)
 
 
@@ -87,7 +95,7 @@ def test_file_write_creates_content():
     fd, path = tempfile.mkstemp(suffix=".txt")
     os.close(fd)
     try:
-        file_write(path, "hello\nworld", confirm=False)
+        file_write(path, "hello\nworld")
         assert file_read(path) == "hello\nworld"
     finally:
         os.unlink(path)
@@ -112,8 +120,12 @@ def test_terminal_run_error_exit():
 
 def test_terminal_run_blocklist():
     from tools.terminal import terminal_run
-    with pytest.raises(ValueError, match="blocked"):
-        terminal_run("rm -rf /")
+    if _IS_WINDOWS:
+        with pytest.raises(ValueError, match="blocked"):
+            terminal_run("format C:")
+    else:
+        with pytest.raises(ValueError, match="blocked"):
+            terminal_run("rm -rf /")
 
 
 def test_terminal_run_blocklist_dd():
@@ -124,7 +136,10 @@ def test_terminal_run_blocklist_dd():
 
 def test_terminal_run_timeout():
     from tools.terminal import terminal_run
-    result = terminal_run("sleep 10", timeout=1)
+    if _IS_WINDOWS:
+        result = terminal_run("ping -n 10 127.0.0.1", timeout=1)
+    else:
+        result = terminal_run("sleep 10", timeout=1)
     assert result.timed_out
     assert result.returncode == -1
 
@@ -187,16 +202,19 @@ def test_dispatch_terminal_run():
 
 
 def test_dispatch_terminal_blocklist():
-    result = _dispatch_tool("terminal_run", {"command": "rm -rf /"})
-    assert "Blocked" in result
+    if _IS_WINDOWS:
+        with pytest.raises(ValueError, match="blocked"):
+            _dispatch_tool("terminal_run", {"command": "format C:"})
+    else:
+        result = _dispatch_tool("terminal_run", {"command": "rm -rf /"})
+        assert "Blocked" in result or "blocked" in result
 
 
 def test_dispatch_file_write_read():
     fd, path = tempfile.mkstemp(suffix=".txt")
     os.close(fd)
     try:
-        write_result = _dispatch_tool("file_write", {"path": path, "content": "dispatch-write"},
-                                      config={"loop": {"confirm_destructive_actions": False}})
+        write_result = _dispatch_tool("file_write", {"path": path, "content": "dispatch-write"})
         assert write_result == "OK"
         read_result = _dispatch_tool("file_read", {"path": path})
         assert read_result == "dispatch-write"
@@ -337,6 +355,8 @@ def test_hyprland_tools_import():
 
 def test_hyprland_no_instance_raises():
     """Without HYPRLAND_INSTANCE_SIGNATURE, all tools raise RuntimeError."""
+    if _IS_WINDOWS:
+        pytest.skip("Hyprland-specific test")
     import os
     from unittest.mock import patch
     from tools.hyprland import workspace_list
@@ -349,6 +369,8 @@ def test_hyprland_no_instance_raises():
 
 def test_hyprland_dispatch_no_instance_returns_error():
     """_dispatch_tool returns error string when Hyprland not running."""
+    if _IS_WINDOWS:
+        pytest.skip("Hyprland-specific test")
     import os
     from unittest.mock import patch
     env = {k: v for k, v in os.environ.items()
@@ -360,6 +382,8 @@ def test_hyprland_dispatch_no_instance_returns_error():
 
 def test_hyprland_agent_tools_present():
     """All 5 hyprland tools are in AGENT_TOOLS."""
+    if _IS_WINDOWS:
+        pytest.skip("Hyprland-specific test")
     names = {t["name"] for t in AGENT_TOOLS}
     for tool in ["hyprland_workspace_list", "hyprland_workspace_switch",
                  "hyprland_clients", "hyprland_active_window", "hyprland_focus_window"]:
@@ -368,6 +392,8 @@ def test_hyprland_agent_tools_present():
 
 def test_hyprland_agent_tools_schema_valid():
     """All hyprland AGENT_TOOLS entries have required schema fields."""
+    if _IS_WINDOWS:
+        pytest.skip("Hyprland-specific test")
     hy_tools = [t for t in AGENT_TOOLS if t["name"].startswith("hyprland")]
     assert len(hy_tools) == 5
     for tool in hy_tools:
@@ -417,3 +443,365 @@ def test_hyprland_active_window_live():
         assert "class_" in result
         assert "title" in result
         assert "workspace_id" in result
+
+
+# ── Windows harness tests ───────────────────────────────────────────────────
+
+@pytest.mark.windows
+def test_windows_harness_starts():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    assert h._started
+    h.stop()
+    assert not h._started
+
+
+@pytest.mark.windows
+def test_windows_harness_verify():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    info = h.verify()
+    assert info["name"] == "windows"
+    assert info["started"] is True
+    assert "resolution" in info
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_screenshot_valid_png():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    b64 = h.capture_fullscreen()
+    assert len(b64) > 1000
+    data = base64.b64decode(b64)
+    assert data[1:4] == b"PNG"
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_screenshot_region():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    b64 = h.capture_region(0, 0, 200, 200)
+    data = base64.b64decode(b64)
+    assert data[1:4] == b"PNG"
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_screenshot_invalid_region():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    with pytest.raises(ValueError):
+        h.capture_region(0, 0, 0, 100)
+    with pytest.raises(ValueError):
+        h.capture_region(0, 0, 100, -1)
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_screen_resolution():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    w, h_res = h.screen_resolution()
+    assert w > 0
+    assert h_res > 0
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_mouse_move_no_crash():
+    """move_mouse should not raise — actual position verification needs a display."""
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    h.move_mouse(500, 500)
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_click_invalid_button():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    with pytest.raises(ValueError, match="Unknown button"):
+        h.click(100, 100, button="invalid")
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_type_text_empty_raises():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    with pytest.raises(ValueError, match="must not be empty"):
+        h.type_text("")
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_press_key_unknown_modifier():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    with pytest.raises(ValueError, match="Unknown modifier"):
+        h.press_key("badmod+a")
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_press_key_unknown_key():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    with pytest.raises(ValueError, match="Unknown key"):
+        h.press_key("badkeyname")
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_hotkey_empty_raises():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    with pytest.raises(ValueError, match="at least one key"):
+        h.hotkey()
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_window_list():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    clients = h.clients()
+    assert isinstance(clients, list)
+    # There should be at least one visible window on any Windows desktop
+    assert len(clients) > 0
+    for c in clients:
+        assert "hwnd" in c
+        assert "title" in c
+        assert "class_" in c
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_active_window():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    result = h.active_window()
+    # May be None in rare cases (no foreground window)
+    if result is not None:
+        assert isinstance(result, dict)
+        assert "hwnd" in result
+        assert "title" in result
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_workspace_list():
+    from harness.windows import WindowsHarness
+    h = WindowsHarness()
+    h.start()
+    workspaces = h.workspace_list()
+    assert isinstance(workspaces, list)
+    assert len(workspaces) > 0
+    assert workspaces[0]["active"] is True
+    h.stop()
+
+
+@pytest.mark.windows
+def test_windows_detect_harness():
+    """detect_harness() should return WindowsHarness on Windows."""
+    import platform
+    if platform.system() != "Windows":
+        pytest.skip("Windows only")
+    from harness import detect_harness, reset_harness
+    reset_harness()
+    h = detect_harness()
+    assert h.name == "windows"
+    reset_harness()
+
+
+# ── Windows dispatch tests ──────────────────────────────────────────────────
+
+@pytest.mark.windows
+def test_dispatch_windows_tools():
+    """windows_* tool names should dispatch correctly."""
+    from agent.loop import _dispatch_tool
+    result = _dispatch_tool("windows_workspace_list", {})
+    # Should return JSON, not "Unknown tool"
+    assert "Unknown tool" not in result
+
+
+@pytest.mark.windows
+def test_dispatch_windows_clients():
+    from agent.loop import _dispatch_tool
+    result = _dispatch_tool("windows_clients", {})
+    assert "Unknown tool" not in result
+
+
+@pytest.mark.windows
+def test_dispatch_windows_active_window():
+    from agent.loop import _dispatch_tool
+    result = _dispatch_tool("windows_active_window", {})
+    assert "Unknown tool" not in result
+
+
+# ── HiDPI screenshot scaling ─────────────────────────────────────────────────
+
+def test_scale_screenshot_noop_for_small():
+    import base64, io
+    from PIL import Image
+    from agent.loop import scale_screenshot
+    img = Image.new("RGB", (800, 600), (0, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    scaled, factor = scale_screenshot(b64, 1024, 768)
+    assert scaled == b64
+    assert factor == 1.0
+
+
+def test_scale_screenshot_scales_down():
+    import base64, io
+    from PIL import Image
+    from agent.loop import scale_screenshot
+    img = Image.new("RGB", (3840, 2160), (0, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    scaled, factor = scale_screenshot(b64, 1024, 768)
+    out = Image.open(io.BytesIO(base64.b64decode(scaled)))
+    assert out.width <= 1024
+    assert out.height <= 768
+    # Scale factor maps scaled width back to native width
+    assert round(out.width * factor) == 3840
+    assert round(out.height * factor) == 2160
+
+
+def test_scale_screenshot_preserves_aspect():
+    import base64, io
+    from PIL import Image
+    from agent.loop import scale_screenshot
+    img = Image.new("RGB", (1920, 1080), (0, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    scaled, factor = scale_screenshot(b64, 1024, 768)
+    out = Image.open(io.BytesIO(base64.b64decode(scaled)))
+    assert out.width / out.height == pytest.approx(1920 / 1080, rel=0.01)
+    assert factor > 1.0
+
+
+def test_loop_scales_mouse_coordinates():
+    """With scale != 1.0, mouse coords are converted back to native pixels."""
+    from unittest.mock import patch
+    from agent.loop import AgentLoop, MOUSE_COORD_TOOLS
+    mock_backend = MagicMock(spec=BackendAdapter)
+    loop = AgentLoop({"loop": {"confirm_destructive_actions": False}}, mock_backend)
+    loop._scale_factor = 2.0
+    loop._dispatch = MagicMock(return_value="OK")
+    # Patch module-level _dispatch_tool used by _act
+    with patch("agent.loop._dispatch_tool", return_value="OK") as mock_dispatch:
+        loop._act(AgentResponse(
+            content="",
+            tool_calls=[{"name": "mouse_move", "input": {"x": 512, "y": 384}, "id": "m1"}],
+            stop_reason="tool_use",
+        ))
+        _, args, _ = mock_dispatch.call_args.args
+        assert args["x"] == 1024
+        assert args["y"] == 768
+
+
+def test_loop_does_not_scale_at_scale_1():
+    from unittest.mock import patch
+    from agent.loop import AgentLoop
+    mock_backend = MagicMock(spec=BackendAdapter)
+    loop = AgentLoop({"loop": {"confirm_destructive_actions": False}}, mock_backend)
+    loop._scale_factor = 1.0
+    with patch("agent.loop._dispatch_tool", return_value="OK") as mock_dispatch:
+        loop._act(AgentResponse(
+            content="",
+            tool_calls=[{"name": "mouse_move", "input": {"x": 512, "y": 384}, "id": "m1"}],
+            stop_reason="tool_use",
+        ))
+        _, args, _ = mock_dispatch.call_args.args
+        assert args["x"] == 512
+        assert args["y"] == 384
+
+
+def test_loop_scales_drag_coordinates():
+    from unittest.mock import patch
+    from agent.loop import AgentLoop
+    mock_backend = MagicMock(spec=BackendAdapter)
+    loop = AgentLoop({"loop": {"confirm_destructive_actions": False}}, mock_backend)
+    loop._scale_factor = 1.5
+    with patch("agent.loop._dispatch_tool", return_value="OK") as mock_dispatch:
+        loop._act(AgentResponse(
+            content="",
+            tool_calls=[{"name": "mouse_drag",
+                         "input": {"from_x": 100, "from_y": 200,
+                                   "to_x": 300, "to_y": 400}, "id": "d1"}],
+            stop_reason="tool_use",
+        ))
+        _, args, _ = mock_dispatch.call_args.args
+        assert args["from_x"] == 150
+        assert args["from_y"] == 300
+        assert args["to_x"] == 450
+        assert args["to_y"] == 600
+
+
+# ── Non-vision model support ─────────────────────────────────────────────────
+
+def test_non_vision_backend_skips_images():
+    """A backend without vision gets no images in send_message."""
+    mock_backend = MagicMock(spec=BackendAdapter)
+    mock_backend.supports_vision.return_value = False
+    mock_backend.send_message.return_value = AgentResponse(
+        content="done", tool_calls=[], stop_reason="end_turn",
+    )
+    loop = AgentLoop(_MOCK_CONFIG, mock_backend)
+    loop.run("test")
+    _, kwargs = mock_backend.send_message.call_args
+    assert kwargs["images"] == []
+
+
+def test_vision_backend_receives_images():
+    """A vision backend gets the screenshot in send_message."""
+    mock_backend = MagicMock(spec=BackendAdapter)
+    mock_backend.supports_vision.return_value = True
+    mock_backend.send_message.return_value = AgentResponse(
+        content="done", tool_calls=[], stop_reason="end_turn",
+    )
+    loop = AgentLoop(_MOCK_CONFIG, mock_backend)
+    loop.run("test")
+    _, kwargs = mock_backend.send_message.call_args
+    assert isinstance(kwargs["images"], list)
+    assert len(kwargs["images"]) == 1
+
+
+def test_perceive_disabled_scaling_config():
+    """scale_screenshots: false should not alter the screenshot."""
+    mock_backend = MagicMock(spec=BackendAdapter)
+    loop = AgentLoop(
+        {"loop": {"scale_screenshots": False, "confirm_destructive_actions": False}},
+        mock_backend,
+    )
+    loop._scale_screenshots = False
+    perception = loop._perceive()
+    assert perception["scale"] == 1.0
+
+
+def test_ollama_non_vision_heuristic():
+    from agent.backends.ollama import OllamaBackend
+    cfg = {"model": "llama3", "endpoint": "http://localhost:11434"}
+    backend = OllamaBackend(cfg)
+    assert backend.supports_vision() is False

@@ -646,6 +646,9 @@ hyprland = [
     { name = "evdev" },
     { name = "pytesseract" },
 ]
+windows = [
+    { name = "pytesseract" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -653,19 +656,20 @@ requires-dist = [
     { name = "evdev", marker = "extra == 'hyprland'", specifier = ">=1.6" },
     { name = "google-generativeai", specifier = ">=0.8" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "hypragent", extras = ["hyprland", "browser"], marker = "extra == 'all'" },
+    { name = "hypragent", extras = ["hyprland", "windows", "browser"], marker = "extra == 'all'" },
     { name = "mcp", specifier = ">=1.0" },
     { name = "ollama", specifier = ">=0.4" },
     { name = "pillow", specifier = ">=10.0" },
     { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.45" },
     { name = "pytesseract", specifier = ">=0.3.13" },
     { name = "pytesseract", marker = "extra == 'hyprland'", specifier = ">=0.3" },
+    { name = "pytesseract", marker = "extra == 'windows'", specifier = ">=0.3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
 ]
-provides-extras = ["hyprland", "browser", "all", "dev"]
+provides-extras = ["hyprland", "windows", "browser", "all", "dev"]
 
 [[package]]
 name = "idna"

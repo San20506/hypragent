@@ -26,6 +26,9 @@ loop:
   max_steps: 20                       # abort after this many perceive→act cycles
   screenshot_on_every_step: true      # capture screen before each reasoning step
   confirm_destructive_actions: true   # prompt before file write/move/delete
+  scale_screenshots: true             # scale screenshots down for token efficiency
+  scale_max_width: 1024               # max scaled screenshot width
+  scale_max_height: 768               # max scaled screenshot height
   kill_switch_key: "ctrl+shift+escape"
 
 safety:

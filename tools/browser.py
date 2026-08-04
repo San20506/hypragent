@@ -1,29 +1,35 @@
 """Browser automation tool via Playwright — Milestone M7.
 
 Python dependency: playwright (uv run playwright install chromium)
-Wayland: Chromium launched with --ozone-platform=wayland, headless=False.
+Linux/Wayland: Chromium launched with --ozone-platform=wayland.
+Windows/macOS: No special launch args needed.
 
 Module-level singleton keeps the browser alive across tool calls in a session.
 Call browser_close() to tear down between tasks if needed.
+
+Lazy import: playwright is imported inside _ensure_browser() so the module
+can be imported without playwright installed (e.g. on CI or minimal installs).
 """
 
 import base64
+import platform
 
-from playwright.sync_api import Browser, Page, Playwright, sync_playwright
-
-
-_playwright_ctx: Playwright | None = None
-_browser: Browser | None = None
-_page: Page | None = None
+_playwright_ctx = None
+_browser = None
+_page = None
 
 
-def _ensure_browser() -> Page:
+def _ensure_browser():
     global _playwright_ctx, _browser, _page
     if _page is None:
+        from playwright.sync_api import sync_playwright
         _playwright_ctx = sync_playwright().start()
+        _args: list[str] = []
+        if platform.system() == "Linux":
+            _args = ["--ozone-platform=wayland"]
         _browser = _playwright_ctx.chromium.launch(
             headless=False,
-            args=["--ozone-platform=wayland"],
+            args=_args,
         )
         _page = _browser.new_page()
     return _page
