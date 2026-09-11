@@ -1,8 +1,8 @@
 """Terminal command execution tool.
 
-Safety: Commands are parsed via shlex (POSIX) or executed via cmd.exe
-(Windows) and checked against a structured blocklist. No substring matching
-on executable names — prevents trivial bypasses like extra whitespace.
+Safety: Commands are validated against an allowlist of safe executables.
+Only explicitly allowed commands can run. This prevents arbitrary command
+execution via interpreters (python, bash, etc.) or indirect vectors.
 """
 
 import platform
@@ -21,16 +21,34 @@ class TerminalResult:
     timed_out: bool
 
 
-# Blocked commands — matched against the first argument (the executable).
-# Prefix matches: "dd" blocks "dd", "dd_rescue", etc.
-# Path matches: "/usr/bin/rm" blocks if the full path is used.
-BLOCKED_COMMANDS = {
-    "mkfs", "mkfs.ext4", "mkfs.btrfs", "mkfs.fat", "mkfs.ntfs",
-    "dd",
-    "shred",
-    "fdisk", "cfdisk", "sfdisk", "parted", "gparted",
-    # Windows-specific
-    "format", "diskpart",
+# Allowed commands — only these executables can run.
+# Prefix matches: "ls" allows "ls", "lsblk", etc.
+# This is an allowlist, not a denylist — everything else is rejected.
+ALLOWED_COMMANDS = {
+    # File inspection
+    "ls", "cat", "head", "tail", "less", "more", "wc", "file", "stat",
+    "find", "locate", "which", "whereis", "type",
+    # Text processing
+    "grep", "egrep", "fgrep", "sed", "awk", "cut", "sort", "uniq", "tr",
+    "tee", "xargs", "paste", "join", "split", "fmt",
+    # Directory navigation
+    "pwd", "cd", "dirs", "pushd", "popd",
+    # File operations (read-only)
+    "cp", "mv", "ln", "mkdir", "rmdir", "touch", "chmod", "chown",
+    # System info
+    "uname", "hostname", "uptime", "date", "cal", "df", "du", "free",
+    "ps", "top", "htop", "lsof", "netstat", "ss", "ip", "ping",
+    # Archives
+    "tar", "gzip", "gunzip", "bzip2", "xz", "zip", "unzip",
+    # Misc utilities
+    "echo", "printf", "test", "true", "false", "sleep", "seq", "yes",
+    "diff", "patch", "basename", "dirname", "realpath", "readlink",
+    # Editors (viewers only — nano/vim can edit but are commonly needed)
+    "nano", "vim", "vi", "emacs",
+    # Version control
+    "git",
+    # Package managers (read-only queries)
+    "pacman", "apt", "dnf", "yum", "brew",
 }
 
 # Blocked argument patterns — if these appear as standalone arguments, block.
@@ -47,6 +65,25 @@ BLOCKED_ARG_PATTERNS = [
 ]
 
 
+def _check_allowlist(exe: str) -> None:
+    """Raise ValueError if executable is not in the allowlist."""
+    if not any(allowed == exe or exe.startswith(allowed) for allowed in ALLOWED_COMMANDS):
+        raise ValueError(
+            f"Command not in allowlist: {exe!r}. "
+            f"Only explicitly allowed commands can run. "
+            f"See ALLOWED_COMMANDS in terminal.py for the full list."
+        )
+
+
+def _check_blocked_patterns(normalized: str) -> None:
+    """Raise ValueError if command matches a blocked argument pattern."""
+    for pattern in BLOCKED_ARG_PATTERNS:
+        if pattern in normalized:
+            raise ValueError(
+                f"Command blocked by safety policy: contains {pattern!r}"
+            )
+
+
 def terminal_run(
     command: str,
     cwd: str | None = None,
@@ -55,10 +92,9 @@ def terminal_run(
     """Run a shell command and return structured output.
 
     Safety checks (in order):
-      1. On POSIX: parses command with shlex to normalize whitespace.
-      2. On Windows: runs via cmd.exe /c (no shlex — Windows paths use
-         backslashes that shlex would mangle).
-      3. Checks the executable name against BLOCKED_COMMANDS.
+      1. On POSIX: parses command with shlex to extract executable name.
+      2. On Windows: extracts first token for executable check.
+      3. Checks the executable name against ALLOWED_COMMANDS (allowlist).
       4. Checks the full command string against BLOCKED_ARG_PATTERNS.
 
     Args:
@@ -70,7 +106,7 @@ def terminal_run(
         TerminalResult with stdout, stderr, returncode, timed_out.
 
     Raises:
-        ValueError: If command is blocked by safety policy.
+        ValueError: If command is not in allowlist or matches blocked pattern.
     """
     is_windows = platform.system() == "Windows"
 
@@ -90,17 +126,8 @@ def terminal_run(
                 exe = exe[: -len(ext)]
                 break
 
-        if exe in BLOCKED_COMMANDS:
-            raise ValueError(
-                f"Command blocked by safety policy: {exe!r}. "
-                f"Use alternative or manually run in your terminal."
-            )
-
-        for pattern in BLOCKED_ARG_PATTERNS:
-            if pattern in normalized:
-                raise ValueError(
-                    f"Command blocked by safety policy: contains {pattern!r}"
-                )
+        _check_allowlist(exe)
+        _check_blocked_patterns(normalized)
 
         try:
             result = subprocess.run(
@@ -126,19 +153,11 @@ def terminal_run(
             raise ValueError("Command must not be empty")
 
         exe = Path(args[0]).name
-        if exe in BLOCKED_COMMANDS:
-            raise ValueError(
-                f"Command blocked by safety policy: {exe!r}. "
-                f"Use alternative or manually run in your terminal."
-            )
+        _check_allowlist(exe)
 
         # Rejoin with normalized whitespace for pattern matching
         normalized = " ".join(args)
-        for pattern in BLOCKED_ARG_PATTERNS:
-            if pattern in normalized:
-                raise ValueError(
-                    f"Command blocked by safety policy: contains {pattern!r}"
-                )
+        _check_blocked_patterns(normalized)
 
         try:
             result = subprocess.run(
@@ -156,6 +175,3 @@ def terminal_run(
             )
         except subprocess.TimeoutExpired:
             return TerminalResult(stdout="", stderr="", returncode=-1, timed_out=True)
-
-
-

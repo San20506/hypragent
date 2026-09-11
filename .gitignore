@@ -34,7 +34,7 @@ test-results/
 .vscode/
 *.swp
 *.swo
-*.
+# *. removed — matched nothing useful
 # OS
 .DS_Store
 Thumbs.db
@@ -45,8 +45,8 @@ Thumbs.db
 # uv lock (committed intentionally — remove this line to track it)
 # uv.lock
 
-# Documnation build artifacts
-*docs/
+# Documentation build artifacts
+# *docs/ removed — fragile pattern, docs/ tracked intentionally
 !/docs
 PLAN.md
 PRD.md
@@ -54,7 +54,7 @@ SECURITY.md
 CLAUDE(3).md
 
 # Test
- *tests/ 
+# *tests/ removed — malformed pattern with spaces
 
 # Linter
 .ruff_cache/
@@ -63,4 +63,4 @@ CLAUDE(3).md
 .obsidian-vault/
 .paul/
 .sisyphus/
-config.yaml
+# config.yaml removed — duplicate of line 19

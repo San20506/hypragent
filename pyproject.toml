@@ -4,30 +4,31 @@ version = "1.0.0"
 description = "Native model-agnostic computer use agent for Hyprland/Wayland"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.0",
-    "anthropic>=0.40",
-    "google-generativeai>=0.8",
-    "ollama>=0.4",
-    "Pillow>=10.0",
-    "httpx>=0.27",
-    "pyyaml>=6.0",
-    "pytesseract>=0.3.13",
+    "mcp>=1.0,<2.0",
+    "anthropic>=0.40,<1.0",
+    "google-generativeai>=0.8,<1.0",
+    "ollama>=0.4,<1.0",
+    "Pillow>=10.0,<12.0",
+    "httpx>=0.27,<1.0",
+    "pyyaml>=6.0,<7.0",
+    "pytesseract>=0.3.13,<1.0",
 ]
+
 
 [project.optional-dependencies]
 hyprland = [
-    "evdev>=1.6",
-    "pytesseract>=0.3",
+    "evdev>=1.6,<2.0",
+    "pytesseract>=0.3,<1.0",
 ]
 windows = [
-    "pytesseract>=0.3",
+    "pytesseract>=0.3,<1.0",
 ]
-browser = ["playwright>=1.45"]
+browser = ["playwright>=1.45,<2.0"]
 all = ["hypragent[hyprland,windows,browser]"]
 dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-    "ruff>=0.6",
+    "pytest>=8.0,<9.0",
+    "pytest-asyncio>=0.23,<1.0",
+    "ruff>=0.6,<1.0",
 ]
 
 [project.scripts]

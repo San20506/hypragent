@@ -9,7 +9,7 @@ Thank you for your interest in contributing.
 Before opening an issue:
 1. Search [existing issues](../../issues) to avoid duplicates.
 2. Test on a clean CachyOS/Arch install if possible.
-3. Include your Hyprland version, Python version, and ydotool version.
+3. Include your Hyprland version, Python version, and evdev version.
 
 Use the appropriate label: `bug`, `enhancement`, `documentation`, `question`.
 
@@ -41,7 +41,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 feat(tools): add screenshot region selector
-fix(mouse): correct scroll direction on ydotool 1.0.4
+fix(mouse): correct scroll direction on evdev 5.x
 docs(readme): add Ollama setup instructions
 test(integration): add keyboard type round-trip test
 ```
@@ -55,7 +55,7 @@ Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`
 - **Python 3.11+** — use type annotations on all function signatures.
 - **PEP 8** — format with `black`, lint with `ruff`.
 - **No hardcoded secrets** — credentials via environment variables only.
-- **No `shell=True`** in subprocess calls — use `shlex.split` + list form.
+- **No `shell=True`** in subprocess calls — use `shlex.split` + list form. Exception: Windows `terminal_run` uses `shell=True` because cmd.exe requires it for path handling.
 - **Functions under 50 lines** — extract helpers if needed.
 - **No mutation** — return new objects rather than modifying in place.
 

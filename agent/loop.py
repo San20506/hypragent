@@ -168,14 +168,78 @@ AGENT_TOOLS = [
 ]
 
 
+# Sensitive tools and their sensitive fields — these are redacted in audit logs
+_SENSITIVE_FIELDS = {
+    "keyboard_type": {"text"},  # Passwords, API keys
+    "file_write": {"content"},  # File contents
+    "terminal_run": {"command"},  # Commands with inline secrets
+}
+
+_MAX_AUDIT_LOG_SIZE = 10 * 1024 * 1024  # 10MB
+_MAX_AUDIT_BACKUPS = 5
+
+
+def _redact_sensitive(tool_name: str, arguments: dict) -> dict:
+    """Redact sensitive fields from tool arguments for audit logging.
+
+    Args:
+        tool_name: Name of the tool.
+        arguments: Tool arguments dict.
+
+    Returns:
+        Redacted copy of arguments.
+    """
+    if tool_name not in _SENSITIVE_FIELDS:
+        return arguments
+
+    redacted = arguments.copy()
+    for field in _SENSITIVE_FIELDS[tool_name]:
+        if field in redacted:
+            redacted[field] = "<REDACTED>"
+    return redacted
+
+
+def _rotate_audit_log() -> None:
+    """Rotate audit log if it exceeds size limit."""
+    try:
+        if not os.path.exists(_AUDIT_LOG):
+            return
+        size = os.path.getsize(_AUDIT_LOG)
+        if size < _MAX_AUDIT_LOG_SIZE:
+            return
+
+        # Rotate existing backups
+        for i in range(_MAX_AUDIT_BACKUPS - 1, 0, -1):
+            src = f"{_AUDIT_LOG}.{i}" if i > 1 else _AUDIT_LOG
+            dst = f"{_AUDIT_LOG}.{i + 1}"
+            if os.path.exists(src):
+                os.replace(src, dst)
+
+        # Current log becomes .1
+        os.replace(_AUDIT_LOG, f"{_AUDIT_LOG}.1")
+    except Exception as e:
+        # Log rotation failure should not break the agent
+        pass
+
+
 def _audit(tool_name: str, arguments: dict, result: str) -> None:
-    """Append a JSON line to the audit log."""
+    """Append a JSON line to the audit log with sensitive data redacted."""
+    # Rotate log if needed
+    _rotate_audit_log()
+
+    # Redact sensitive fields
+    redacted_args = _redact_sensitive(tool_name, arguments)
+
     entry = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "tool": tool_name,
-        "args": arguments,
+        "args": redacted_args,
         "result": result[:200],
     }
+
+    # Ensure log directory exists
+    os.makedirs(os.path.dirname(_AUDIT_LOG), exist_ok=True)
+
     with open(_AUDIT_LOG, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
 

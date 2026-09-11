@@ -8,7 +8,7 @@ HyprAgent exposes full desktop control as MCP tools — works with Claude Code, 
 
 ```bash
 # 1. Install dependencies
-sudo pacman -S grim slurp ydotool wl-clipboard tesseract tesseract-data-eng
+sudo pacman -S grim slurp wl-clipboard tesseract tesseract-data-eng
 sudo modprobe uinput
 sudo usermod -aG input $USER
 
@@ -51,7 +51,7 @@ uv run hypragent
 
 ## MCP Tools
 
-22 tools exposed: `take_screenshot`, `mouse_move`, `mouse_click`, `mouse_drag`, `mouse_scroll`, `keyboard_type`, `keyboard_press`, `read_screen_text`, `browser_open`, `browser_navigate`, `browser_click`, `browser_type`, `browser_scroll`, `browser_get_text`, `file_list`, `file_read`, `file_write`, `file_move`, `file_delete`, `terminal_run`, `hyprland_workspace_list`, `hyprland_workspace_switch`, `hyprland_clients`, `hyprland_active_window`, `hyprland_focus_window`
+27 tools exposed: `take_screenshot`, `mouse_move`, `mouse_click`, `mouse_drag`, `mouse_scroll`, `keyboard_type`, `keyboard_press`, `read_screen_text`, `browser_open`, `browser_navigate`, `browser_click`, `browser_type`, `browser_scroll`, `browser_get_text`, `browser_close`, `file_list`, `file_read`, `file_write`, `file_move`, `file_delete`, `terminal_run`, `hyprland_workspace_list`, `hyprland_workspace_switch`, `hyprland_clients`, `hyprland_active_window`, `hyprland_focus_window`, `execute_plan`
 
 See [README.dev.md](README.dev.md) for full documentation.
 

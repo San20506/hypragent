@@ -13,8 +13,9 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.hypragent.R
 import com.hypragent.accessibility.HyprAccessibilityService
+import com.hypragent.consent.ConsentManager
+import com.hypragent.consent.ConsentManagerHolder
 import com.hypragent.ui.TaskStatusManager
-import com.hypragent.websocket.HyprWebSocketClient
 
 /**
  * HyprForegroundService — keeps the Termux core alive in the background.
@@ -119,7 +120,27 @@ class HyprForegroundService : Service() {
             },
         ).apply {
             // Route Layer B commands to the accessibility service
+            // Safety: Check consent before executing commands
             commandHandler = handler@{ action, params ->
+                // Map actions to permission types
+                val permissionType = when (action) {
+                    "tap", "swipe", "long_press", "pinch" -> ConsentManager.PermissionType.GESTURE_CONTROL
+                    "screen_read", "read_screen_text", "screenshot" -> ConsentManager.PermissionType.SCREEN_READ
+                    else -> null
+                }
+
+                // Check consent if permission type is defined
+                if (permissionType != null) {
+                    val consent = ConsentManagerHolder.instance
+                    val appPackage = params.optString("appPackage", "unknown")
+                    if (consent != null && !consent.hasConsent(appPackage, permissionType)) {
+                        return@handler org.json.JSONObject().apply {
+                            put("status", "error")
+                            put("error", "Consent not granted for $action (requires $permissionType)")
+                        }
+                    }
+                }
+
                 val service = HyprAccessibilityService.instance
                     ?: return@handler org.json.JSONObject().apply {
                         put("status", "error")

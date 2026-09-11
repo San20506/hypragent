@@ -26,10 +26,12 @@ import java.util.concurrent.TimeUnit
  */
 class HyprWebSocketClient(
     private val port: Int = 12345,
+    private val authToken: String? = null,
     var onEvent: ((JSONObject) -> Unit)? = null,
     var onConnectionStateChanged: ((Boolean) -> Unit)? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
 ) {
+
 
     companion object {
         private const val TAG = "HyprWebSocket"
@@ -73,9 +75,16 @@ class HyprWebSocketClient(
         if (isConnected) return
         isStopped = false
 
-        val request = Request.Builder()
+        val requestBuilder = Request.Builder()
             .url("ws://127.0.0.1:$port")
-            .build()
+
+        // Add authentication header if token is provided
+        if (authToken != null) {
+            requestBuilder.addHeader("Authorization", "Bearer $authToken")
+        }
+
+        val request = requestBuilder.build()
+
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {

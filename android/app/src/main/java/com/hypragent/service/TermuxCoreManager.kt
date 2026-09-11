@@ -187,6 +187,7 @@ class TermuxCoreManager(private val context: Context) {
      */
     private fun extractBootstrap(targetDir: File) {
         targetDir.mkdirs()
+        val targetDirCanonical = targetDir.canonicalFile
         val stream = try {
             context.assets.open("termux_bootstrap.zip")
         } catch (e: Exception) {
@@ -198,6 +199,17 @@ class TermuxCoreManager(private val context: Context) {
             var entry = zis.nextEntry
             while (entry != null) {
                 val outFile = File(targetDir, entry.name)
+
+                // Security: Validate extracted path stays within target directory (Zip Slip protection)
+                val outFileCanonical = outFile.canonicalFile
+                if (!outFileCanonical.path.startsWith(targetDirCanonical.path + File.separator) &&
+                    outFileCanonical != targetDirCanonical) {
+                    Log.w(TAG, "Zip entry ${entry.name} attempts to escape target directory — skipping")
+                    zis.closeEntry()
+                    entry = zis.nextEntry
+                    continue
+                }
+
                 if (entry.isDirectory) {
                     outFile.mkdirs()
                 } else {
