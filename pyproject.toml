@@ -8,7 +8,7 @@ dependencies = [
     "anthropic>=0.40,<1.0",
     "google-generativeai>=0.8,<1.0",
     "ollama>=0.4,<1.0",
-    "Pillow>=10.0,<12.0",
+    "Pillow>=12.3.0,<13.0",
     "httpx>=0.27,<1.0",
     "pyyaml>=6.0,<7.0",
     "pytesseract>=0.3.13,<1.0",
@@ -51,4 +51,3 @@ packages = ["agent", "tools", "harness"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "mcp_server.py" = "mcp_server.py"
-
