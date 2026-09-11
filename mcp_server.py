@@ -405,16 +405,27 @@ async def list_tools() -> list[Tool]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    """Handle tool calls with structured error responses."""
     try:
         if name == "execute_plan":
+            if "actions" not in arguments:
+                return [TextContent(type="text", text="Error: missing required argument 'actions'", isError=True)]
             plan_result = execute_plan(arguments["actions"], dispatch_tool, verify=True)
             return [TextContent(type="text", text=json.dumps(plan_result, indent=2))]
         result = dispatch_tool(name, arguments)
+        # Check if result is a validation error
+        if result.startswith("Validation error:"):
+            return [TextContent(type="text", text=result, isError=True)]
         return [TextContent(type="text", text=result)]
     except ValueError as e:
-        return [TextContent(type="text", text=f"Blocked: {e}")]
+        # Safety policy violations (command blocked, path outside sandbox, etc.)
+        return [TextContent(type="text", text=f"Blocked: {e}", isError=True)]
+    except KeyError as e:
+        # Missing required argument
+        return [TextContent(type="text", text=f"Missing required argument: {e}", isError=True)]
     except Exception as e:
-        return [TextContent(type="text", text=f"Error: {e}")]
+        # Unexpected errors
+        return [TextContent(type="text", text=f"Error: {type(e).__name__}: {e}", isError=True)]
 
 
 # ── Server entry point ──────────────────────────────────────────────────────

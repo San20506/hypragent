@@ -643,6 +643,34 @@ class HyprlandHarness:
                 "(HYPRLAND_INSTANCE_SIGNATURE not set)"
             )
 
+    @staticmethod
+    def _sanitize_hyprctl_arg(arg: str, allow_spaces: bool = False) -> str:
+        """Sanitize an argument for hyprctl to prevent command injection.
+
+        Args:
+            arg: Argument to sanitize.
+            allow_spaces: Whether to allow spaces (for window titles).
+
+        Returns:
+            Sanitized argument.
+
+        Raises:
+            ValueError: If argument contains dangerous characters.
+        """
+        # Characters that could be used for shell injection or hyprctl escape
+        dangerous_chars = set(";|&$`\\\"'(){}[]<>!#~")
+        if not allow_spaces:
+            dangerous_chars.add(" ")
+
+        found = [c for c in arg if c in dangerous_chars]
+        if found:
+            raise ValueError(
+                f"Argument contains dangerous characters {found!r}. "
+                f"Only alphanumeric, hyphens, underscores, dots, and {'spaces and ' if allow_spaces else ''}forward slashes are allowed."
+            )
+
+        return arg
+
     def _hyprctl(self, *args: str) -> str:
         """Run hyprctl with given args and return stdout."""
         self._check_hyprland()
@@ -709,17 +737,22 @@ class HyprlandHarness:
         }
 
     def focus_window(self, target: str) -> None:
+        # Sanitize target to prevent injection
+        # Allow spaces for window titles
+        sanitized = self._sanitize_hyprctl_arg(target, allow_spaces=True)
+
         # If target looks like a window title (contains spaces or long text),
         # try title-based matching first, then fall back to class matching.
-        if " " in target or len(target) > 20:
+        if " " in sanitized or len(sanitized) > 20:
             try:
-                self._hyprctl("dispatch", "focuswindow", f"title:{target}")
+                self._hyprctl("dispatch", "focuswindow", f"title:{sanitized}")
                 return
             except RuntimeError:
                 pass  # Fall through to class matching
-        if ":" not in target:
-            target = f"class:{target}"
-        self._hyprctl("dispatch", "focuswindow", target)
+        if ":" not in sanitized:
+            sanitized = f"class:{sanitized}"
+        self._hyprctl("dispatch", "focuswindow", sanitized)
+
 
     def focus_window_by_title(self, title_substring: str) -> None:
         """Focus a window by partial title match.
@@ -727,15 +760,21 @@ class HyprlandHarness:
         Searches all clients for a title containing the substring
         and focuses by address.
         """
+        # Sanitize title to prevent injection
+        sanitized = self._sanitize_hyprctl_arg(title_substring, allow_spaces=True)
+
         for client in self.clients():
-            if title_substring.lower() in client["title"].lower():
+            if sanitized.lower() in client["title"].lower():
                 self._hyprctl("dispatch", "focuswindow", f"address:{client['address']}")
                 return
-        raise RuntimeError(f"No window with title containing {title_substring!r}")
+        raise RuntimeError(f"No window with title containing {sanitized!r}")
+
 
     def launch_app(self, name: str) -> None:
         """Launch an app via hyprctl dispatch exec."""
-        self._hyprctl("dispatch", "exec", name)
+        # Sanitize app name to prevent injection
+        sanitized = self._sanitize_hyprctl_arg(name, allow_spaces=False)
+        self._hyprctl("dispatch", "exec", sanitized)
 
     def screen_resolution(self) -> tuple[int, int]:
         return (self._screen_w, self._screen_h)

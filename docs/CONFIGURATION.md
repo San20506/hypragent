@@ -115,7 +115,7 @@ Commands containing any blocklist substring are **always rejected**, regardless 
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | If using Claude | Anthropic API key |
 | `GEMINI_API_KEY` | If using Gemini | Google AI API key |
-| `YDOTOOL_SOCKET` | Optional | Path to ydotoold socket (default: `/run/user/1000/.ydotool_socket`) |
+# YDOTOOL_SOCKET removed — HyprAgent uses evdev UInput directly, not ydotool
 
 ---
 

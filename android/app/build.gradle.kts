@@ -1,3 +1,16 @@
+// Sync termux_core Python sources to Android assets before build
+// This eliminates code duplication — single source of truth in termux_core/
+tasks.register<Sync>("syncTermuxCore") {
+    from("$rootDir/../../termux_core")
+    into("$projectDir/src/main/assets/termux_core")
+    include("**/*.py")
+}
+
+// Make preBuild depend on syncTermuxCore
+tasks.named("preBuild") {
+    dependsOn("syncTermuxCore")
+}
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")

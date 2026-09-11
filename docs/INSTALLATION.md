@@ -15,14 +15,13 @@ This guide walks you through setting up HyprAgent on CachyOS or Arch Linux with 
 ## Step 1 — System Packages
 
 ```bash
-sudo pacman -S grim slurp ydotool wl-clipboard tesseract tesseract-data-eng
+sudo pacman -S grim slurp wl-clipboard tesseract tesseract-data-eng
 ```
 
 | Package | Purpose |
 |---------|---------|
 | `grim` | Wayland-native screenshot capture |
 | `slurp` | Interactive screen region selector |
-| `ydotool` | Wayland input injection (mouse + keyboard) |
 | `wl-clipboard` | Wayland clipboard (`wl-copy` / `wl-paste`) |
 | `tesseract` | OCR engine |
 | `tesseract-data-eng` | English OCR language data |
@@ -31,7 +30,7 @@ sudo pacman -S grim slurp ydotool wl-clipboard tesseract tesseract-data-eng
 
 ## Step 2 — Kernel Module for Input Injection
 
-ydotool requires the `uinput` kernel module:
+HyprAgent uses evdev UInput for mouse and keyboard input, which requires the `uinput` kernel module:
 
 ```bash
 sudo modprobe uinput
@@ -87,23 +86,7 @@ This installs Chromium under `~/.cache/ms-playwright/`. Required for `browser_*`
 
 ---
 
-## Step 6 — Start the ydotool Daemon
-
-```bash
-systemctl --user enable --now ydotool
-```
-
-Verify it's running:
-
-```bash
-systemctl --user status ydotool
-```
-
-The socket appears at `/run/user/1000/.ydotool_socket` (replace `1000` with your UID).
-
----
-
-## Step 7 — Configure
+## Step 6 — Configure
 
 ```bash
 cp config.yaml.example config.yaml
@@ -129,7 +112,7 @@ ollama pull llava
 
 ---
 
-## Step 8 — Add to Claude Code (MCP)
+## Step 7 — Add to Claude Code (MCP)
 
 ```bash
 claude mcp add hypr-agent -- uv run --project /path/to/hypragent hypragent
@@ -150,9 +133,6 @@ See [FAQ.md](FAQ.md) for common install errors.
 
 **Quick checks:**
 ```bash
-# Is ydotool running?
-systemctl --user is-active ydotool
-
 # Can grim take a screenshot?
 grim /tmp/test.png && echo "OK"
 
@@ -160,5 +140,8 @@ grim /tmp/test.png && echo "OK"
 tesseract --version
 
 # Does the Python environment have all deps?
-uv run python -c "import anthropic, pytesseract, playwright; print('OK')"
+uv run python -c "import anthropic, pytesseract, playwright, evdev; print('OK')"
+
+# Is the input group set up?
+groups | grep input
 ```
